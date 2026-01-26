@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sistem Pengurusan Koko (V31 Sijil Fixed)</title>
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" async></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- [FIX 1] Added missing fonts: Cinzel and Noto Serif -->
+    <!-- Google Fonts for Sijil -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Great+Vibes&family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 1. UI STYLES (Modern Interface) --- */
+        :root { --primary: #1e3a8a; --secondary: #3b82f6; --accent: #f59e0b; --bg: #f3f4f6; --text: #1f2937; --success: #16a34a; --danger: #dc2626; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); margin: 0; padding: 0; color: var(--text); padding-top: 65px; padding-bottom: 40px; }
+        * { box-sizing: border-box; }
+
+        /* Navbar */
+        .navbar { background-color: var(--primary); color: white; height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 1rem; position: fixed; top: 0; width: 100%; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .nav-brand { font-weight: bold; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+        .status-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: var(--accent); color: black; font-weight: bold; }
+        .nav-menu { display: flex; gap: 5px; overflow-x: auto; }
+        .nav-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; white-space: nowrap; transition: 0.2s; }
+        .nav-btn.active { background: var(--accent); color: black; font-weight: bold; border-color: var(--accent); }
+
+        /* Layout & Cards */
+        .container { max-width: 900px; margin: 15px auto; padding: 0 15px; }
+        .tab-content { display: none; animation: fadeIn 0.3s; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 1.2rem; margin-bottom: 1.2rem; border-top: 4px solid var(--secondary); }
+        .card h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #444; font-size: 1.1rem; display:flex; justify-content:space-between; align-items:center; }
+        
+        /* Forms */
+        .flex { display: flex; } .gap-2 { gap: 0.5rem; } .col { flex-direction: column; } .w-half { width: 49%; } .w-full { width: 100%; }
+        select, input, textarea { width: 100%; padding: 9px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.95rem; margin-bottom: 8px; background: #fff; box-sizing: border-box; }
+        label { font-weight: 600; font-size: 0.85rem; color: #555; display: block; margin-bottom: 3px; }
+
+        /* Buttons */
+        .btn { padding: 10px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; color: white; width: 100%; margin-top: 5px; font-size: 0.95rem; transition:0.2s; }
+        .btn:hover { opacity:0.9; }
+        .btn-blue { background: var(--secondary); } .btn-green { background: var(--success); } .btn-red { background: var(--danger); } .btn-gray { background: #6b7280; }
+        .btn-outline { background: white; border: 1px solid #ccc; color: #333; padding: 5px 10px; font-size: 0.85rem; width: auto; margin: 0; cursor:pointer; border-radius:4px; }
+
+        /* Attendance List */
+        .student-item { display: flex; justify-content: space-between; padding: 12px 10px; border-bottom: 1px solid #eee; align-items: center; background: #fff; }
+        .student-item.absent { background: #fee2e2; }
+        .student-name { font-size: 1rem; cursor: pointer; color: var(--primary); text-decoration: underline; text-decoration-color: #ccc; }
+        .status-pill { padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; font-weight: bold; cursor: pointer; user-select: none; border:1px solid transparent; }
+        .pill-green { background: #dcfce7; color: #166534; border-color: #86efac; }
+        .pill-red { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+        /* Data Tables */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top:5px; }
+        .data-table th, .data-table td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
+        .data-table th { background: #f3f4f6; }
+
+        /* Accordion */
+        .month-group { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+        .month-header { background: #f9fafb; padding: 10px; font-weight: bold; font-size: 0.95rem; cursor: pointer; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; }
+        .month-body { padding: 10px; background: white; display: none; flex-wrap: wrap; gap:10px; }
+        .month-body.open { display: flex; }
+        .chk-label { display: flex; align-items: center; gap: 5px; font-size: 0.9rem; padding: 5px 8px; border:1px solid #eee; border-radius:4px; }
+
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 200; justify-content: center; align-items: center; }
+        .modal-content { background: white; width: 95%; max-width: 600px; padding: 20px; border-radius: 8px; max-height: 90vh; overflow-y: auto; position: relative; }
+        .close-btn { position: absolute; top: 10px; right: 15px; font-size: 1.5rem; cursor: pointer; color: #999; }
+
+        /* --- 2. PRINT STYLES --- */
+        .print-page { 
+            width: 210mm; 
+            height: 296mm; 
+            padding: 5mm 15mm 5mm 15mm; 
+            margin: 0 auto; 
+            background: white; 
+            color: black; 
+            font-family: "Times New Roman", Times, serif; 
+            overflow: hidden; 
+            position: relative; 
+            page-break-after: always; 
+            box-sizing: border-box; 
+            display: flex; 
+            flex-direction: column;
+        }
+        
+        .header-section { text-align: center; border-bottom: 2px solid black; padding-bottom: 5px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
+        .header-logo { height: 80px; margin-right: 15px; } 
+        .header-titles h1 { font-size: 1.6rem; font-weight: 900; margin: 0; letter-spacing: 1px; text-transform: uppercase; line-height: 1.1; }
+        .header-titles h2 { font-size: 1.1rem; font-weight: bold; margin: 2px 0 0; text-transform: uppercase; line-height: 1.1; }
+        .header-titles p { font-size: 0.9rem; margin: 2px 0 0; font-style: italic; color: #000; }
+
+        table.official { width: 100%; border-collapse: collapse; border: 1px solid black; margin-bottom: 8px; font-size: 0.9rem; }
+        table.official td, table.official th { border: 1px solid black; padding: 4px 6px; } 
+        .bg-gray-official { background-color: #e5e7eb; font-weight: bold; text-transform: uppercase; width: 30%; }
+        .section-label { background: black; color: white; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; padding: 2px 6px; display: inline-block; margin-bottom: 2px; }
+        .report-textarea-print { width: 100%; border: none; padding: 0; font-family: inherit; font-size: 0.9rem; line-height: 1.3; white-space: pre-wrap; text-align: justify; }
+
+        .signature-section { display: flex; justify-content: space-between; margin-top: 50px; padding-top: 10px; padding-bottom: 10px; page-break-inside: avoid; }
+        .signature-box { text-align: center; width: 40%; }
+        .sig-label { font-weight: bold; margin-bottom: 40px; display: block; }
+        .sig-name { font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 2px; }
+        .sig-line { border-bottom: 1px solid black; width: 100%; margin: 0 auto 5px auto; }
+        .sig-role { font-size: 0.8rem; color: #000; text-transform: uppercase; }
+
+        /* Carta Styles */
+        .org-container { text-align: center; font-family: "Segoe UI", Arial, sans-serif; padding: 20px; }
+        .org-title { font-weight: bold; text-decoration: underline; font-size: 1.2rem; margin-bottom: 10px; text-transform: uppercase; }
+        .org-level { display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; position: relative; }
+        .org-box { border: 2px solid #f97316; padding: 10px; background: white; width: 220px; border-radius: 4px; position: relative; z-index: 2; }
+        .org-role { font-weight: bold; font-size: 0.9rem; color: black; margin-bottom: 5px; }
+        .org-name { font-size: 0.95rem; font-weight: bold; text-transform: uppercase; color: #1e3a8a; }
+        .org-class { font-size: 0.8rem; color: #666; }
+        .org-box-wide { width: 80%; max-width: 600px; text-align: left; margin: 0 auto; }
+        .ajk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 0.9rem; }
+        .line-vertical { width: 2px; background: black; height: 20px; margin: 0 auto; }
+        
+        /* --- SIJIL PENGHARGAAN STYLES --- */
+        	/* --- SIJIL STYLES (PORTRAIT PROFESSIONAL) --- */
+.sijil-page {
+    width: 210mm; 
+    height: 295mm; /* A4 Portrait */
+    padding: 0; 
+    margin: 0 auto; 
+    background: #fff;
+    position: relative;
+    page-break-after: always;
+    overflow: hidden;
+	   display: block;
+}
+
+/* 防止最后一页后面多出一张空白页 */
+.sijil-page:last-child {
+    page-break-after: avoid;
+}
+
+
+.sijil-border {
+    width: 190mm; /* 稍微留白 */
+    height: 275mm; 
+    margin: 10mm auto; /* 上下左右居中 */
+    padding: 0;
+    box-sizing: border-box;
+    position: relative;
+    display: flex; 
+    flex-direction: column; 
+    align-items: center;
+    justify-content: space-between; /* 关键：把内容和签名上下撑开 */
+    background-image: radial-gradient(circle, #fff 40%, #f0f4ff 100%);
+    border-radius: 10px;
+	border: 8px double #1e3a8a;
+}
+
+
+/* 内容包装器：让文字居中显示 */
+.sijil-content-wrapper {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* 垂直居中 */
+    align-items: center;
+    width: 100%;
+    text-align: center;
+}
+
+.sijil-logo { width: 110px; margin-bottom: 15px; }
+
+.sijil-title {
+    font-family: 'Great Vibes', cursive;
+    font-size: 4.5rem; /* 加大标题 */
+    color: #1e3a8a;
+    margin: 0 0 10px 0;
+    line-height: 1.2;
+}
+
+.sijil-text {
+    font-family: 'Noto Serif', serif; font-size: 1.15rem; color: #444;
+    margin: 5px 0; font-style: italic;
+}
+
+.sijil-name {
+    font-family: 'Cinzel', serif; font-size: 2.4rem; font-weight: 700;
+    color: #000; margin: 25px 0; 
+    border-bottom: 2px solid #1e3a8a; padding: 0 20px 5px 20px;
+    display: inline-block;
+}
+
+.sijil-group {
+    font-family: 'Cinzel', serif; font-size: 1.8rem; font-weight: bold;
+    color: #1e3a8a; margin: 15px 0; text-transform: uppercase;
+}
+
+.sijil-role {
+    font-family: 'Noto Serif', serif; font-size: 1.5rem; font-weight: bold;
+    color: #374151; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px;
+}
+
+.sijil-year { 
+    font-family: 'Noto Serif', serif; font-size: 1.1rem; color: #666; margin-top: 5px; 
+}
+
+/* 签名区域 */
+.sijil-sig-container {
+    width: 100%; 
+    display: flex; 
+    justify-content: space-around; /* 平均分布 */
+    align-items: flex-end;
+    padding-bottom: 10px;
+}
+.sijil-sig-box { 
+    text-align: center; width: 32%; 
+    font-family: 'Noto Serif', serif; 
+}
+.sijil-sig-line { border-bottom: 1px solid #000; margin: 50px auto 5px auto; width: 90%; }
+.sijil-sig-name { font-weight: bold; font-size: 0.85rem; text-transform: uppercase; }
+.sijil-sig-role { font-size: 0.8rem; }
+
+/* Checkbox List for Sijil */
+.sijil-selector { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #fff; }
+.sijil-row { display: flex; align-items: center; padding: 5px; border-bottom: 1px dotted #eee; }
+
+        /* Utils & Print Staging Fix */
+        .hidden { display: none !important; }
+        
+        /* [FIX 2] Staging Container Fix: Force width so absolute positioned children don't collapse */
+        #pdf-staging-container { 
+            position: absolute; 
+            left: -9999px; 
+            top: 0; 
+            width: 210mm; /* CRITICAL FIX FOR BLANK PAGES */
+        }
+        
+        @media print {
+            body * { visibility: hidden; }
+            #pdf-staging-container, #pdf-staging-container * { visibility: visible; }
+            #pdf-staging-container { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none; }
+            .org-box { border: 2px solid black !important; }
+            .org-name { color: black !important; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<div class="navbar no-print">
+    <div class="nav-brand">
+        <span>Sistem Koko V31</span>
+        <span id="status-badge" class="status-badge">Connecting...</span>
+    </div>
+    <div class="nav-menu">
+        <button class="nav-btn active" onclick="app.nav('attendance', this)">Kehadiran</button>
+        <button class="nav-btn" onclick="app.nav('report', this)">Laporan</button>
+        <button class="nav-btn" onclick="app.nav('data', this)">Data & Jawatan</button>
+        <button class="nav-btn" onclick="app.nav('carta', this)">Carta & Sijil</button>
+        <button class="nav-btn" onclick="app.nav('archive', this)">Arkib</button>
+        <button class="nav-btn" onclick="app.nav('manage', this)">Pengurusan</button>
+    </div>
+</div>
+
+<div class="container no-print">
+    <!-- TAB 1: KEHADIRAN -->
+    <div id="tab-attendance" class="tab-content active">
+        <div class="card">
+            <h3>📝 Tanda Kehadiran</h3>
+            <div class="flex gap-2">
+                <select id="att-year" onchange="app.updateDropdowns('att')" class="w-half"><option value="">Tahun</option><option>四年级</option><option>五年级</option><option>六年级</option></select>
+                <select id="att-cat" onchange="app.updateDropdowns('att')" class="w-half"><option value="">Kategori</option><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
+            </div>
+            <select id="att-group" onchange="app.renderAttendanceList()"><option value="">-- Pilih Kumpulan Dahulu --</option></select>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #eee; padding-top:10px; margin-top:5px;">
+                <label style="margin:0;">Tarikh:</label>
+                <input type="date" id="att-date" style="width:70%; margin:0;" onchange="app.renderAttendanceList()">
+            </div>
+        </div>
+        <div class="card" style="padding:0; overflow:hidden;">
+            <div id="att-list-container" style="padding:20px; text-align:center; color:#666;">Sila pilih kumpulan dan tarikh.</div>
+            <div id="att-actions" class="hidden" style="padding:15px; background:#f9fafb; border-top:1px solid #eee;">
+                <button onclick="app.saveAttendance()" class="btn btn-green">💾 SIMPAN KEHADIRAN</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: LAPORAN -->
+    <div id="tab-report" class="tab-content">
+        <div class="card">
+            <h3>📄 Jana Laporan Mingguan</h3>
+            <div class="flex gap-2">
+                <select id="rpt-year" onchange="app.updateDropdowns('rpt')" class="w-half"><option value="">Tahun</option><option>四年级</option><option>五年级</option><option>六年级</option></select>
+                <select id="rpt-cat" onchange="app.updateDropdowns('rpt')" class="w-half"><option value="">Kategori</option><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
+            </div>
+            <select id="rpt-group" onchange="app.onReportGroupSelect()"><option value="">-- Pilih Kumpulan --</option></select>
+
+            <div id="rpt-meta" class="hidden" style="background:#eff6ff; padding:15px; border-radius:6px; margin:15px 0; border:1px solid #bfdbfe;">
+                <div style="font-size:0.9rem; font-weight:bold; color:#1e40af; margin-bottom:10px;">✨ Maklumat Automatik</div>
+                <div class="mb-2"><label>Guru Bertugas</label><input type="text" id="meta-teacher"></div>
+                <div class="flex gap-2">
+                    <div class="w-half"><label>Tempat</label><input type="text" id="meta-place"></div>
+                    <div class="w-half"><label>Setiausaha</label><input type="text" id="meta-officer"></div>
+                </div>
+            </div>
+
+            <div id="rpt-dates" class="hidden">
+                <label>Pilih Tarikh (Sivik Auto):</label>
+                <div id="rpt-date-accordion"></div>
+                <button onclick="app.generatePreview()" class="btn btn-blue">JANA BORANG ▼</button>
+            </div>
+        </div>
+
+        <div id="report-preview-area" class="hidden">
+            <div class="flex justify-between items-center mb-2" style="background:#d1fae5; padding:10px; border-radius:6px; border:1px solid #34d399;">
+                <span style="color:#065f46; font-weight:bold;">Pratonton (Boleh Edit)</span>
+                <button onclick="app.saveReportToCloud()" class="btn btn-green" style="width:auto; padding:5px 15px;">💾 SIMPAN KE ARKIB</button>
+            </div>
+            <div id="editor-content" class="print-page" style="height:auto; min-height:297mm; box-shadow:0 0 10px rgba(0,0,0,0.1); margin-bottom:20px;"></div>
+        </div>
+    </div>
+
+    <!-- TAB 3: DATA & JAWATAN -->
+    <div id="tab-data" class="tab-content">
+        <div class="card">
+            <h3>🗂️ Kemaskini Data & Jawatan</h3>
+            <p style="font-size:0.8rem;color:#666;">Nota: Bila anda 'Simpan', Nama + Kelas + Cina akan digabungkan semula supaya laporan anda cantik.</p>
+            <div style="background:#f0f9ff; padding:10px; border:1px solid #bae6fd; border-radius:4px; margin-bottom:10px;">
+                <div class="flex gap-2">
+                    <select id="data-year" onchange="app.updateDropdowns('data')" class="w-half"><option value="">Tahun</option><option>四年级</option><option>五年级</option><option>六年级</option></select>
+                    <select id="data-cat" onchange="app.updateDropdowns('data')" class="w-half"><option value="">Kategori</option><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
+                </div>
+                <select id="data-group" onchange="app.renderDataEditor()"><option value="">-- Pilih Kumpulan --</option></select>
+            </div>
+
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                    <thead>
+                        <tr style="background:#f3f4f6; border-bottom:2px solid #ddd;">
+                            <th style="padding:8px; text-align:left;">Nama Melayu (Tanpa Cina/Kelas)</th>
+                            <th style="padding:8px; text-align:left; width:80px;">Cina</th>
+                            <th style="padding:8px; text-align:left; width:60px;">Kelas</th>
+                            <th style="padding:8px; text-align:left; width:120px;">Jawatan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-editor-body"></tbody>
+                </table>
+            </div>
+            <button onclick="app.saveBulkData()" class="btn btn-blue" style="margin-top:15px;">💾 SIMPAN SEMUA PERUBAHAN</button>
+        </div>
+    </div>
+
+    <!-- TAB 4: CARTA & SIJIL -->
+    <div id="tab-carta" class="tab-content">
+        <div class="card no-print">
+    <h3>📊 Jana Carta Organisasi</h3>
+    <div class="flex gap-2">
+        <select id="carta-year" onchange="app.updateDropdowns('carta')" class="w-half"><option value="">Tahun</option><option>四年级</option><option>五年级</option><option>六年级</option></select>
+        <select id="carta-cat" onchange="app.updateDropdowns('carta')" class="w-half"><option value="">Kategori</option><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
+    </div>
+    <select id="carta-group" onchange="app.renderSijilList()"><option value="">-- Pilih Kumpulan --</option></select>
+   <button onclick="app.generateCarta()" class="btn btn-blue">JANA CARTA (LIST & POKOK)</button>
+
+    <!-- 新增：文凭生成区域 -->
+    <hr style="border:0; border-top:2px dashed #ddd; margin:20px 0;">
+    
+    <h3 style="color:#1e3a8a;">🎓 Jana Sijil Penghargaan</h3>
+    <p style="font-size:0.85rem; color:#666;">Pilih murid yang akan menerima sijil:</p>
+    
+    <div class="flex gap-2">
+        <button onclick="app.toggleSijilChecks(true)" class="btn-outline">Pilih Semua</button>
+        <button onclick="app.toggleSijilChecks(false)" class="btn-outline">Nyahpilih</button>
+    </div>
+    
+    <div id="sijil-student-list" class="sijil-selector">
+        <div style="text-align:center; color:#999;">Sila pilih kumpulan di atas dahulu.</div>
+    </div>
+
+    <button onclick="app.generateSijilPDF()" class="btn btn-green">📄 JANA SIJIL PDF (PROFESIONAL)</button>        
+</div>
+
+        <div id="carta-preview" class="hidden">
+            <div class="flex justify-between items-center mb-2 no-print" style="background:#fff7ed; padding:10px; border:1px solid #fdba74;">
+                <span style="color:#c2410c; font-weight:bold;">Pratonton (Boleh Cetak)</span>
+               <button onclick="app.downloadCartaPDF()" class="btn btn-red" style="width:auto;">📄 MUAT TURUN PDF</button>
+	
+            </div>
+            
+            <!-- Page 1: List Style -->
+            <div id="carta-page-1" class="print-page" style="height:auto; min-height:295mm; margin-bottom:20px;"></div>
+            
+            <!-- Page 2: Tree Style -->
+            <div id="carta-page-2" class="print-page" style="height:auto; min-height:295mm;"></div>
+
+        </div>
+    </div>
+
+    <!-- TAB 5: ARKIB -->
+    <div id="tab-archive" class="tab-content">
+        <div class="card">
+            <h3>📂 Arkib Laporan</h3>
+            <div style="background:#f9fafb; padding:10px; border:1px solid #eee; border-radius:4px; margin-bottom:10px;">
+                <div class="flex gap-2">
+                    <select id="arc-year" onchange="app.updateDropdowns('arc')" class="w-half"><option value="">Tahun</option><option>四年级</option><option>五年级</option><option>六年级</option></select>
+                    <select id="arc-cat" onchange="app.updateDropdowns('arc')" class="w-half"><option value="">Kategori</option><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
+                </div>
+                <select id="arc-group" onchange="app.fetchReports(); app.renderStatsTable();"><option value="">-- Pilih Kumpulan (Filter) --</option></select>
+            </div>
+            <div style="max-height:300px; overflow-y:auto; border:1px solid #e5e7eb; margin-bottom:10px;">
+                <table class="data-table">
+                    <thead><tr><th style="width:30px;"><input type="checkbox" onchange="app.toggleAllArchive(this)"></th><th>Unit / Tarikh</th><th style="text-align:center;">Aksi</th></tr></thead>
+                    <tbody id="archive-list"></tbody>
+                </table>
+            </div>
+            <button onclick="app.printCombinedPDF()" class="btn btn-red">📄 MUAT TURUN PDF (GABUNGAN)</button>
+        </div>
+
+        <div class="card" style="border-top-color:#8b5cf6;">
+            <h3>📊 Prestasi Kehadiran (Live)</h3>
+            <div id="stats-container" style="max-height:300px; overflow-y:auto; margin-top:10px;">
+                <div style="padding:10px; text-align:center; color:#999;">Sila pilih kumpulan di bahagian filter Arkib.</div>
+            </div>
+            <button onclick="app.exportExcel()" class="btn btn-green">📥 DOWNLOAD EXCEL</button>
+        </div>
+        
+        <div class="card" style="border-top-color:#16a34a;">
+            <h3>📥 Eksport Data Mentah (Batch Excel)</h3>
+            <div style="background:#f0fdf4; padding:10px; border-radius:4px; border:1px solid #bbf7d0; margin-bottom:10px;">
+                <span style="font-size:0.9rem; color:#15803d;">Filter untuk senarai di bawah:</span>
+                <div class="flex gap-2 mt-2">
+                    <select id="batch-filter-year" onchange="app.renderBatchList()" class="w-half"><option value="">Semua Tahun</option><option>四年级</option><option>五年级</option><option>六年级</option></select>
+                    <select id="batch-filter-cat" onchange="app.renderBatchList()" class="w-half"><option value="">Semua Kategori</option><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
+                </div>
+            </div>
+            <div id="batch-group-list" style="max-height:200px; overflow-y:auto; border:1px solid #eee; margin-bottom:10px; padding:5px;"></div>
+            <div class="flex gap-2">
+                <button onclick="app.toggleBatchChecks(true)" class="btn-outline">Pilih Semua</button>
+                <button onclick="app.toggleBatchChecks(false)" class="btn-outline">Nyahpilih</button>
+            </div>
+            <button onclick="app.exportBatchExcel()" class="btn btn-green">📥 DOWNLOAD EXCEL (GABUNGAN)</button>
+        </div>
+    </div>
+
+    <!-- TAB 6: PENGURUSAN -->
+    <div id="tab-manage" class="tab-content">
+        <div class="card">
+            <h3>⚙️ Urus Murid / Hapus Kumpulan</h3>
+            <div style="background:#f9fafb; padding:10px; border:1px solid #eee; border-radius:4px; margin-bottom:10px;">
+                <div class="flex gap-2">
+                    <select id="mng-year" onchange="app.updateDropdowns('mng')" class="w-half"><option value="">Tahun</option><option>四年级</option><option>五年级</option><option>六年级</option></select>
+                    <select id="mng-cat" onchange="app.updateDropdowns('mng')" class="w-half"><option value="">Kategori</option><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
+                </div>
+                <select id="mng-group" onchange="app.renderManageList()"><option value="">-- Pilih Kumpulan --</option></select>
+                <button onclick="app.deleteGroup()" class="btn btn-red" style="margin-top:10px; background:#ef4444;">🗑️ HAPUS KUMPULAN INI</button>
+            </div>
+            <div id="mng-list" style="max-height:300px; overflow-y:auto; border:1px solid #eee; background:white;"></div>
+        </div>
+
+        <div class="card">
+            <h3>➕ Tambah Murid (Batch)</h3>
+            <p style="font-size:0.85rem; color:#666;">Pilih kumpulan di atas, kemudian tampal nama.</p>
+            <textarea id="batch-names" rows="3" placeholder="Tampal nama murid di sini (Satu nama satu baris)..."></textarea>
+            <button onclick="app.addStudents()" class="btn btn-blue">TAMBAH KE KUMPULAN TERPILIH</button>
+        </div>
+        
+        <div class="card">
+            <h3>➕ Tambah Kumpulan Baru</h3>
+            <div class="flex gap-2">
+                <select id="new-year" class="w-half"><option>四年级</option><option>五年级</option><option>六年级</option></select>
+                <select id="new-cat" class="w-half"><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
+            </div>
+            <input type="text" id="new-group-name" placeholder="Nama Kumpulan (Contoh: Bahasa Melayu)">
+            <button onclick="app.addGroup()" class="btn btn-green">WUJUDKAN KUMPULAN</button>
+        </div>
+    </div>
+
+</div>
+
+<!-- HIDDEN STAGING FOR PDF -->
+<div id="pdf-staging-container"><div id="pdf-staging-content"></div></div>
+
+<!-- MODALS -->
+<div id="view-modal" class="modal">
+    <div class="modal-content" style="width:230mm; max-width:95%;">
+        <div style="text-align:right; margin-bottom:10px;">
+            <button onclick="document.getElementById('view-modal').style.display='none'" class="btn-outline">Tutup</button>
+        </div>
+        <div id="view-content" style="border:1px solid #ccc; overflow-y:auto; max-height:80vh;"></div>
+    </div>
+</div>
+
+<div id="profile-modal" class="modal">
+    <div class="modal-content" style="max-width:500px;">
+        <span class="close-btn" onclick="document.getElementById('profile-modal').style.display='none'">&times;</span>
+        <h3 id="prof-name">Nama Murid</h3>
+        <div id="prof-content"></div>
+    </div>
+</div>
+
+<div id="edit-modal" class="modal">
+    <div class="modal-content" style="max-width:400px;">
+        <h3>Edit / Pindah Murid</h3>
+        <input type="hidden" id="edit-id">
+        <label>Nama Murid:</label>
+        <input type="text" id="edit-name">
+        <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+        <label style="color:#1e3a8a;">Pindah Ke Kumpulan (Filter):</label>
+        <div class="flex gap-2">
+            <select id="edit-filter-year" onchange="app.updateEditTargetGroups()" class="w-half"><option value="">Semua Tahun</option><option>四年级</option><option>五年级</option><option>六年级</option></select>
+            <select id="edit-filter-cat" onchange="app.updateEditTargetGroups()" class="w-half"><option value="">Semua Kategori</option><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
+        </div>
+        <select id="edit-target-group" style="background:#f0f9ff; border:1px solid #3b82f6; margin-top:5px;"></select>
+        <div class="flex gap-2 mt-4">
+            <button onclick="app.deleteStudent()" class="btn btn-red">Hapus</button>
+            <button onclick="app.saveStudentEdit()" class="btn btn-green">Simpan</button>
+            <button onclick="document.getElementById('edit-modal').style.display='none'" class="btn btn-gray">Batal</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, onValue, push, set, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    
+    const firebaseConfig = { apiKey: "AIzaSyDO5myI3uksCCJouBuAEcGoRTkzzUzpHy8", authDomain: "school-attendance-v11.firebaseapp.com", databaseURL: "https://school-attendance-v11-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "school-attendance-v11", storageBucket: "school-attendance-v11.firebasestorage.app", messagingSenderId: "765322618387", appId: "1:765322618387:web:34447a10e1bab175b081e6" };
+    
+    const appBase = initializeApp(firebaseConfig);
+    const db = getDatabase(appBase);
+    
+    let dbData = { groups: [], students: [] };
+    let metaData = {};
+    let reportsData = [];
+    let tempAttendance = {};
+    const SIVIK_MAP = { 0: 'Kasih Sayang', 1: 'Hormat-menghormati', 2: 'Bertanggungjawab', 3: 'Kegembiraan', 4: 'Kasih Sayang', 5: 'Hormat-menghormati', 6: 'Bertanggungjawab', 7: 'Kegembiraan', 8: 'Kasih Sayang', 9: 'Hormat-menghormati', 10: 'Bertanggungjawab', 11: 'Kegembiraan' };
+    const JAWATAN_SCORE = { 'PENGERUSI': 10, 'NAIB PENGERUSI': 8, 'SETIAUSAHA': 7, 'BENDAHARI': 7, 'PENOLONG SETIAUSAHA': 6, 'PENOLONG BENDAHARI': 6, 'AJK': 5, 'AHLI AKTIF': 4, 'AHLI BIASA': 1 };
+
+    function init() {
+        onValue(ref(db, 'school_data_v11'), snap => {
+            const v = snap.val();
+            if(v) { dbData = v; if(!dbData.groups) dbData.groups=[]; if(!dbData.students) dbData.students=[]; }
+            else { dbData = { groups: [], students: [] }; }
+            
+            if (dbData.groups && typeof dbData.groups === 'object' && !Array.isArray(dbData.groups)) dbData.groups = Object.values(dbData.groups);
+            if (dbData.students && typeof dbData.students === 'object' && !Array.isArray(dbData.students)) dbData.students = Object.values(dbData.students);
+
+            document.getElementById('status-badge').innerText = "Online";
+            document.getElementById('status-badge').style.background = "#16a34a";
+            
+            app.updateDropdowns('att'); app.updateDropdowns('rpt'); app.updateDropdowns('arc'); app.updateDropdowns('mng'); app.updateDropdowns('carta'); app.updateDropdowns('data');
+            app.renderBatchList();
+        });
+        onValue(ref(db, 'school_group_meta_v11'), snap => { metaData = snap.val() || {}; });
+        onValue(ref(db, 'school_reports_v11'), snap => { reportsData = snap.val() ? Object.values(snap.val()) : []; if(document.getElementById('tab-archive').classList.contains('active')) app.fetchReports(); });
+        document.getElementById('att-date').valueAsDate = new Date();
+    }
+
+    window.app = {
+        nav: (t, el) => {
+            document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
+            document.getElementById('tab-'+t).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(x => x.classList.remove('active'));
+            el.classList.add('active');
+            if(t==='archive') { app.updateDropdowns('arc'); app.renderBatchList(); }
+            if(t==='manage') app.updateDropdowns('mng');
+            if(t==='carta') app.updateDropdowns('carta');
+            if(t==='data') app.renderDataEditor();
+        },
+
+        updateDropdowns: (prefix) => {
+            const y = document.getElementById(prefix+'-year').value;
+            const c = document.getElementById(prefix+'-cat').value;
+            const sel = document.getElementById(prefix+'-group');
+            sel.innerHTML = '<option value="">-- Pilih --</option>';
+            let list = dbData.groups || [];
+            if(y) list = list.filter(g => g.year === y);
+            if(c) list = list.filter(g => g.category === c);
+            list.sort((a,b) => a.name.localeCompare(b.name));
+            list.forEach(g => { sel.innerHTML += `<option value="${g.id}">${g.name}</option>`; });
+
+            if(prefix==='arc') { app.fetchReports(); app.renderStatsTable(); }
+            if(prefix==='mng') app.renderManageList();
+            if(prefix==='data') app.renderDataEditor();
+            if(prefix==='carta') { document.getElementById('carta-preview').classList.add('hidden'); app.renderSijilSelection(); }
+        },
+        
+        // --- 1. DATA & JAWATAN: RENDER (FIXED) ---
+        renderDataEditor: () => {
+            const gid = document.getElementById('data-group').value;
+            const tbody = document.getElementById('data-editor-body');
+            tbody.innerHTML = '';
+
+            if(!gid) { tbody.innerHTML = '<tr><td colspan="4" style="padding:10px;text-align:center;">Sila pilih kumpulan.</td></tr>'; return; }
+
+            const students = dbData.students.filter(s => s.groupId === gid);
+            if(students.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="padding:10px;text-align:center;">Tiada murid.</td></tr>'; return; }
+
+            const jawatanList = ['AHLI BIASA', 'AHLI AKTIF', 'AJK', 'PENOLONG BENDAHARI', 'BENDAHARI', 'PENOLONG SETIAUSAHA', 'SETIAUSAHA', 'NAIB PENGERUSI', 'PENGERUSI'];
+
+            students.forEach(s => {
+                let rawName = s.name || ""; // 完整名字 (Adam (4M) 亚当)
+                
+                // 1. 提取班级 (优先用数据库存的 className，如果没有，从名字里找)
+                let classVal = s.className || ""; 
+                if (!classVal) {
+                    // 尝试匹配 (4M) 或 4M
+                    const classMatch = rawName.match(/(\(?\d[A-Z]\)?)/);
+                    if (classMatch) {
+                        classVal = classMatch[0].replace(/[()]/g, ""); // 去掉括号只留 4M
+                    }
+                }
+
+                // 2. 提取中文 (优先用 name_cn，如果没有，从名字里找)
+                let cnName = s.name_cn || "";
+                if (!cnName) {
+                    const cnMatch = rawName.match(/[\u4e00-\u9fa5]+/);
+                    if (cnMatch) cnName = cnMatch[0];
+                }
+
+                // 3. 清理出纯马来名 (用于编辑)
+                // 逻辑：把名字里的“中文”和“带括号的班级”全部删掉
+                let msName = rawName;
+                msName = msName.replace(/[\u4e00-\u9fa5]+/g, ""); // 删中文
+                msName = msName.replace(/\(?\d[A-Z]\)?/g, "");   // 删班级 (4M) 或 4M
+                msName = msName.replace(/[()]/g, "");             // 删剩余括号
+                msName = msName.trim();                           // 删前后空格
+
+                const currentJwt = s.jawatan || 'AHLI AKTIF';
+
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = "1px solid #eee";
+                tr.innerHTML = `
+                    <td style="padding:5px;">
+                        <input type="text" class="inp-ms" data-id="${s.id}" value="${msName}" style="width:100%; font-size:0.85rem; margin:0;">
+                    </td>
+                    <td style="padding:5px;">
+                        <input type="text" class="inp-cn" value="${cnName}" style="width:100%; font-size:0.85rem; margin:0;" placeholder="-">
+                    </td>
+                    <td style="padding:5px;">
+                        <input type="text" class="inp-cls" value="${classVal}" style="width:100%; font-size:0.85rem; margin:0; text-align:center;">
+                    </td>
+                    <td style="padding:5px;">
+                        <select class="inp-jwt" style="width:100%; font-size:0.85rem; margin:0; padding:5px;">
+                            ${jawatanList.map(j => `<option value="${j}" ${currentJwt === j ? 'selected' : ''}>${j}</option>`).join('')}
+                        </select>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        },
+
+       // --- 2. DATA & JAWATAN: SAVE (FIXED) ---
+        saveBulkData: async () => {
+            if(!confirm("Simpan semua perubahan?")) return;
+
+            const updates = {};
+            const rows = document.querySelectorAll('#data-editor-body tr');
+
+            rows.forEach(tr => {
+                const id = tr.querySelector('.inp-ms').dataset.id;
+                
+                // 获取输入框的值
+                let ms = tr.querySelector('.inp-ms').value.trim().toUpperCase();
+                const cn = tr.querySelector('.inp-cn').value.trim();
+                const cls = tr.querySelector('.inp-cls').value.trim().toUpperCase(); // 4M
+                const jwt = tr.querySelector('.inp-jwt').value;
+
+                // 防御性清理：再次确保 ms 名字里没有混入班级或中文
+                ms = ms.replace(/[\u4e00-\u9fa5]+/g, "").replace(/\(?\d[A-Z]\)?/g, "").replace(/[()]/g, "").trim();
+
+                // 重新组合标准格式：NAME (CLASS) CN
+                let finalName = ms;
+		if (cn) finalName += ` ${cn}`;
+                if (cls) finalName += ` (${cls})`;
+                
+
+                const idx = dbData.students.findIndex(x => x.id === id);
+                if(idx > -1) {
+                    const path = `school_data_v11/students/${idx}`;
+                    updates[`${path}/name`] = finalName;
+                    updates[`${path}/name_cn`] = cn;
+                    updates[`${path}/className`] = cls;
+                    updates[`${path}/jawatan`] = jwt;
+                }
+            });
+
+            try {
+                await update(ref(db), updates);
+                alert("✅ Data berjaya dikemaskini! Nama telah diseragamkan.");
+                app.renderDataEditor(); // 刷新以显示最新状态
+            } catch(e) {
+                alert("Ralat: " + e.message);
+            }
+        },
+
+        // --- ATTENDANCE ---
+        renderAttendanceList: () => {
+            const gid = document.getElementById('att-group').value;
+            const date = document.getElementById('att-date').value;
+            const container = document.getElementById('att-list-container');
+            const actions = document.getElementById('att-actions');
+            if(!gid || !date) { container.innerHTML = "Sila pilih kumpulan & tarikh."; actions.classList.add('hidden'); return; }
+            const students = dbData.students.filter(s => s.groupId === gid);
+            if(students.length === 0) { container.innerHTML = "Tiada murid."; actions.classList.add('hidden'); return; }
+            container.innerHTML = '';
+            tempAttendance = {};
+            students.forEach(s => {
+                const isPresent = (s.attendance && s.attendance[date] !== undefined) ? s.attendance[date] : true;
+                tempAttendance[s.id] = isPresent;
+                const div = document.createElement('div');
+                div.className = `student-item ${isPresent?'':'absent'}`;
+                div.id = `row-${s.id}`;
+                div.innerHTML = `<span class="student-name" onclick="app.showProfile('${s.id}')">${s.name} ℹ️</span><span class="status-pill ${isPresent?'pill-green':'pill-red'}" onclick="app.toggleAtt('${s.id}')">${isPresent?'✔ HADIR':'✖ TIDAK'}</span>`;
+                container.appendChild(div);
+            });
+            actions.classList.remove('hidden');
+        },
+        toggleAtt: (sid) => {
+            tempAttendance[sid] = !tempAttendance[sid];
+            const row = document.getElementById(`row-${sid}`);
+            const pill = row.querySelector('.status-pill');
+            if(tempAttendance[sid]) { row.classList.remove('absent'); pill.className="status-pill pill-green"; pill.innerText="✔ HADIR"; } 
+            else { row.classList.add('absent'); pill.className="status-pill pill-red"; pill.innerText="✖ TIDAK"; }
+        },
+        saveAttendance: async () => {
+            const date = document.getElementById('att-date').value;
+            const gid = document.getElementById('att-group').value;
+            if(!gid) return;
+            const updates = {};
+            dbData.students.forEach((s, idx) => {
+                if(s.groupId === gid && tempAttendance.hasOwnProperty(s.id)) updates[`school_data_v11/students/${idx}/attendance/${date}`] = tempAttendance[s.id];
+            });
+            await update(ref(db), updates); alert("Disimpan!");
+        },
+
+        // --- REPORT ---
+        onReportGroupSelect: () => {
+            const gid = document.getElementById('rpt-group').value;
+            if(!gid) return;
+            let suName = "";
+            const suStudent = dbData.students.find(s => s.groupId === gid && s.jawatan === "SETIAUSAHA");
+            if (suStudent) suName = suStudent.name.split(/[\u4e00-\u9fa5]/)[0].trim(); 
+            if(metaData[gid]) {
+                document.getElementById('meta-teacher').value = metaData[gid].teacher || '';
+                document.getElementById('meta-place').value = metaData[gid].place || '';
+                document.getElementById('meta-officer').value = suName || metaData[gid].officer || '';
+            } else { document.getElementById('meta-officer').value = suName; }
+            document.getElementById('rpt-meta').classList.remove('hidden');
+            const students = dbData.students.filter(s => s.groupId === gid);
+            const datesSet = new Set();
+            students.forEach(s => { if(s.attendance) Object.keys(s.attendance).forEach(d => datesSet.add(d)); });
+            const dates = Array.from(datesSet).sort().reverse();
+            const acc = document.getElementById('rpt-date-accordion'); acc.innerHTML = '';
+            if(dates.length === 0) { acc.innerHTML = '<div style="color:red">Tiada rekod kehadiran.</div>'; return; }
+            let currentMonth = ''; let body = null;
+            dates.forEach((d, idx) => {
+                const mName = new Date(d).toLocaleString('ms-MY', { month:'long', year:'numeric' }).toUpperCase();
+                if(mName !== currentMonth) {
+                    currentMonth = mName;
+                    const grp = document.createElement('div'); grp.className = 'month-group';
+                    const head = document.createElement('div'); head.className = 'month-header';
+                    head.innerHTML = `<span>${mName}</span><span>▼</span>`;
+                    head.onclick = () => { head.nextElementSibling.classList.toggle('open'); };
+                    body = document.createElement('div'); body.className = 'month-body';
+                    if(idx===0) body.classList.add('open');
+                    grp.appendChild(head); grp.appendChild(body); acc.appendChild(grp);
+                }
+                const lbl = document.createElement('label'); lbl.className='chk-label';
+                lbl.innerHTML = `<input type="checkbox" value="${d}" class="rpt-chk"> ${d}`;
+                body.appendChild(lbl);
+            });
+            document.getElementById('rpt-dates').classList.remove('hidden');
+        },
+        generatePreview: () => {
+            const gid = document.getElementById('rpt-group').value;
+            const chks = document.querySelectorAll('.rpt-chk:checked');
+            if(!gid || chks.length===0) return alert("Pilih Tarikh.");
+            const meta = { teacher: document.getElementById('meta-teacher').value, place: document.getElementById('meta-place').value, officer: document.getElementById('meta-officer').value };
+            update(ref(db, 'school_group_meta_v11/'+gid), meta);
+            const group = dbData.groups.find(g => g.id === gid);
+            const students = dbData.students.filter(s => s.groupId === gid);
+            const dates = Array.from(chks).map(c => c.value).sort();
+            const sivikSet = new Set(); let attRows = '';
+            dates.forEach(d => {
+                const m = new Date(d).getMonth(); if(SIVIK_MAP[m]) sivikSet.add(SIVIK_MAP[m]);
+                let p=0; students.forEach(s => { if(s.attendance && s.attendance[d]) p++; });
+                const day = new Date(d).toLocaleDateString('ms-MY', { weekday:'long' });
+                attRows += `<tr><td>${d}</td><td>${day}</td><td style="font-weight:bold">${p} / ${students.length}</td></tr>`;
+            });
+            const data = {
+                groupName: `${group.year} ${group.category} - ${group.name}`, teacher: meta.teacher, place: meta.place, officer: meta.officer, attRows: attRows,
+                activity: '', sivik: Array.from(sivikSet).join(', '), pikebm: '', other: ''
+            };
+            document.getElementById('editor-content').innerHTML = app.buildHTML(data, true);
+            document.getElementById('report-preview-area').classList.remove('hidden');
+            document.getElementById('report-preview-area').scrollIntoView();
+        },
+        saveReportToCloud: async () => {
+            const gid = document.getElementById('rpt-group').value;
+            try {
+                const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ""; };
+                const previewDiv = document.getElementById('editor-content');
+                const tables = previewDiv.getElementsByTagName('table');
+                if(tables.length < 2) throw new Error("Jadual kehadiran tidak dijumpai.");
+                const report = {
+                    id: Date.now(), timestamp: new Date().toISOString(), groupName: tables[0].rows[0].cells[1].innerText, groupId: gid,
+                    meta: { teacher: getVal('meta-teacher'), place: getVal('meta-place'), officer: getVal('meta-officer') },
+                    content: { activity: getVal('inp-activity'), sivik: getVal('inp-sivik'), pikebm: getVal('inp-pikebm'), other: getVal('inp-other') },
+                    attendanceHtml: tables[1].querySelector('tbody').innerHTML
+                };
+                await push(ref(db, 'school_reports_v11'), report);
+                alert("✅ Berjaya disimpan!"); document.getElementById('report-preview-area').classList.add('hidden');
+            } catch (e) { alert("Ralat: " + e.message); }
+        },
+        buildHTML: (data, isEdit) => {
+             const mkArea = (id, val, minH) => isEdit ? `<textarea id="${id}" class="report-textarea-print" style="width:100%;min-height:${minH}px;border:1px solid #ccc;">${val}</textarea>` : `<div class="report-textarea-print" style="min-height:${minH}px;">${val ? val.replace(/\n/g, '<br>') : ''}</div>`;
+             return `
+                <div class="header-section">
+                    <img src="https://upload.wikimedia.org/wikipedia/ms/6/69/Lencana_Sekolah_Jenis_Kebangsaan_%28C%29_True_Light.jpg" class="header-logo">
+                    <div class="header-titles"><h1>LAPORAN MINGGUAN AKTIVITI KO-KURIKULUM</h1><h2>SJK (C) TRUE LIGHT</h2><p>Kampung Juru, 14100 Simpang Ampat, Pulau Pinang</p></div>
+                </div>
+                <table class="official"><tr><td class="bg-gray-official">Nama Unit</td><td style="font-weight:bold;text-transform:uppercase;">${data.groupName}</td></tr><tr><td class="bg-gray-official">Guru Bertugas</td><td style="text-transform:uppercase;">${data.teacher}</td></tr><tr><td class="bg-gray-official">Tempat</td><td style="text-transform:uppercase;">${data.place}</td></tr></table>
+                <div class="mb-4" style="margin-bottom:10px;"><div class="section-label">Rekod Kehadiran</div><table class="official" style="text-align:center;"><thead style="background:#f3f4f6;"><tr><th>Tarikh</th><th>Hari</th><th>Kehadiran</th></tr></thead><tbody>${data.attRows}</tbody></table></div>
+                <div style="margin-bottom:5px;"><div class="section-label">Laporan Kegiatan</div>${mkArea('inp-activity', data.activity, 100)}</div>
+                <div class="flex gap-4" style="margin-bottom:5px; gap:1rem;"><div class="w-half"><div class="section-label">Nilai Sivik</div>${mkArea('inp-sivik', data.sivik, 50)}</div><div class="w-half"><div class="section-label">PIKeBM</div>${mkArea('inp-pikebm', data.pikebm, 50)}</div></div>
+                <div style="margin-bottom:5px;"><div class="section-label">Hal-hal Lain</div>${mkArea('inp-other', data.other, 40)}</div>
+                <div class="signature-section"><div class="signature-box"><span class="sig-label">Disediakan Oleh:</span><span class="sig-name">${data.officer}</span><div class="sig-line"></div><span class="sig-role">( SETIAUSAHA )</span></div><div class="signature-box"><span class="sig-label">Disahkan Oleh:</span><span class="sig-name">${data.teacher}</span><div class="sig-line"></div><span class="sig-role">( GURU PENASIHAT )</span></div></div>`;
+        },
+
+        // --- CARTA & SIJIL ---
+        // --- 替换这整个函数 ---
+generateCarta: () => {
+    const gid = document.getElementById('carta-group').value;
+    if(!gid) return alert("Pilih Kumpulan.");
+
+    const group = dbData.groups.find(g => g.id === gid);
+    const students = dbData.students.filter(s => s.groupId === gid);
+    
+    const guru = metaData[gid] ? metaData[gid].teacher : ".......................";
+    const find = (role) => students.find(s => s.jawatan && s.jawatan.toUpperCase() === role);
+    const findAll = (role) => students.filter(s => s.jawatan && s.jawatan.toUpperCase().includes(role));
+
+    const d = {
+        guru: guru,
+        pengerusi: find('PENGERUSI'),
+        naib: find('NAIB PENGERUSI'),
+        setia: find('SETIAUSAHA'),
+        penSetia: find('PENOLONG SETIAUSAHA'),
+        bend: find('BENDAHARI'),
+        penBend: find('PENOLONG BENDAHARI'),
+        ajk: findAll('AJK') 
+    };
+
+    // --- 修改点：不再追加 className，只显示 name (因为 name 已经包含班级了) ---
+    const fmt = (s) => s ? s.name : '-'; 
+    const fmtName = (s) => s ? s.name : '-';
+    
+    // 下面这行 mkBox 用的其实是 org-class，如果你想彻底去掉框里的班级显示，可以把 org-class 留空
+    // 但既然你的名字里已经包含了班级，那么 fmtName 显示全名即可。
+    // 如果你想让下面的 box 里也不额外显示班级，可以把 mkBox 改一下。
+    // 不过通常 box 里是分两行的：名字一行，班级一行。
+    // 如果名字里有班级，那 org-class 这一行可能会显得多余。
+    // 简单起见，如果你只是想去掉列表里的重复班级，改上面的 fmt 就够了。
+    // 如果你想让树状图 Box 里也不重复，请看下面的 mkBox 修改。
+
+    let listHtml = `
+        <div style="text-align:center; margin-bottom:40px;">
+            <h2 style="text-decoration:underline; text-transform:uppercase;">Carta Organisasi ${group.category} ${group.name} ${group.year}</h2>
+        </div>
+        <table style="width:100%; font-size:1.1rem; line-height:1.8;">
+            <tr><td style="width:40%;">Guru Penasihat</td><td>: ${d.guru}</td></tr>
+            <tr><td>Pengerusi</td><td>: ${fmt(d.pengerusi)}</td></tr>
+            <tr><td>Naib Pengerusi</td><td>: ${fmt(d.naib)}</td></tr>
+            <tr><td>Setiausaha</td><td>: ${fmt(d.setia)}</td></tr>
+            <tr><td>Penolong Setiausaha</td><td>: ${fmt(d.penSetia)}</td></tr>
+            <tr><td>Bendahari</td><td>: ${fmt(d.bend)}</td></tr>
+            <tr><td>Penolong Bendahari</td><td>: ${fmt(d.penBend)}</td></tr>
+            <tr><td style="vertical-align:top;">AJK</td><td>: 
+                <ol style="margin:0; padding-left:20px;">
+                    ${d.ajk.map(s => `<li>${fmt(s)}</li>`).join('')}
+                </ol>
+            </td></tr>
+        </table>
+        <div style="margin-top:100px; display:flex; justify-content:space-between;">
+            <div style="text-align:center; width:40%;">
+                Disediakan oleh:<br><br><br>____________________<br>Setiausaha:<br><b>${fmtName(d.setia)}</b>
+            </div>
+            <div style="text-align:center; width:40%;">
+                Disahkan oleh:<br><br><br>____________________<br>Guru Penasihat:<br><b>${d.guru}</b>
+            </div>
+        </div>
+    `;
+    document.getElementById('carta-page-1').innerHTML = listHtml;
+
+    // --- 修改点：Box 里的班级显示 ---
+    // 如果名字里已经有班级 (例如 "Ali (4M)"), 那么 org-class 部分就不需要了，或者留空
+    const mkBox = (role, s) => `
+        <div class="org-box">
+            <div class="org-role">${role}</div>
+            <div class="org-name">${fmtName(s)}</div>
+            <!-- 下面这一行删掉了，不再额外显示班级 -->
+        </div>`;
+
+    let treeHtml = `
+        <div class="org-container">
+            <div class="org-title">Carta Organisasi ${group.category} ${group.name}<br>${group.year}</div>
+            <div class="org-level"><div class="org-box" style="border-color:#ea580c;"><div class="org-role">Guru Penasihat</div><div class="org-name">${d.guru}</div></div></div><div class="line-vertical"></div>
+            <div class="org-level">${mkBox('Pengerusi', d.pengerusi)}</div><div class="line-vertical"></div>
+            <div class="org-level">${mkBox('Naib Pengerusi', d.naib)}</div><div class="line-vertical"></div>
+            <div style="display:flex; justify-content:center; gap:20px; margin-bottom:20px;"><div style="display:flex; flex-direction:column; gap:10px;">${mkBox('Setiausaha', d.setia)}${mkBox('Bendahari', d.bend)}</div><div style="display:flex; flex-direction:column; gap:10px;">${mkBox('Pen. Setiausaha', d.penSetia)}${mkBox('Pen. Bendahari', d.penBend)}</div></div><div class="line-vertical"></div>
+            <div class="org-level"><div class="org-box org-box-wide"><div class="org-role" style="text-align:center; border-bottom:1px solid #ccc; margin-bottom:5px;">AJK</div><div class="ajk-grid">${d.ajk.map((s,i) => `<div>${i+1}. ${s.name}</div>`).join('')}</div></div></div>
+        </div>
+    `;
+    document.getElementById('carta-page-2').innerHTML = treeHtml;
+
+    document.getElementById('carta-preview').classList.remove('hidden');
+    document.getElementById('carta-preview').scrollIntoView();
+},
+
+// 2. 下载 Carta PDF
+downloadCartaPDF: async () => {
+    const p1 = document.getElementById('carta-page-1');
+    const p2 = document.getElementById('carta-page-2');
+    
+    if(!p1.innerHTML || p1.innerHTML === "") {
+        return alert("Sila tekan butang 'JANA CARTA' dahulu.");
+    }
+
+    const container = document.getElementById('pdf-staging-content');
+    container.innerHTML = ''; 
+    container.appendChild(p1.cloneNode(true));
+    container.appendChild(p2.cloneNode(true));
+
+    const opt = { 
+        margin: 0, 
+        filename: 'Carta_Organisasi.pdf', 
+        image: { type: 'jpeg', quality: 0.98 }, 
+        html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, 
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
+    };
+
+    alert("Sedang menjana PDF...");
+    await html2pdf().set(opt).from(container).save();
+    container.innerHTML = '';
+},
+
+// 3. 渲染 Sijil 复选框列表
+renderSijilList: () => {
+    const gid = document.getElementById('carta-group').value;
+    const div = document.getElementById('sijil-student-list');
+    div.innerHTML = '';
+
+    if(!gid) { div.innerHTML = '<div style="text-align:center;color:#999;">Pilih kumpulan.</div>'; return; }
+
+    const students = dbData.students.filter(s => s.groupId === gid);
+    students.sort((a,b) => {
+        const isRoleA = (a.jawatan && a.jawatan !== 'AHLI BIASA' && a.jawatan !== 'AHLI AKTIF');
+        const isRoleB = (b.jawatan && b.jawatan !== 'AHLI BIASA' && b.jawatan !== 'AHLI AKTIF');
+        if(isRoleA && !isRoleB) return -1;
+        if(!isRoleA && isRoleB) return 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    if(students.length === 0) { div.innerHTML = 'Tiada murid.'; return; }
+
+    students.forEach(s => {
+        const jwt = s.jawatan || 'AHLI BIASA';
+        const row = document.createElement('div');
+        row.className = 'sijil-row';
+        const isChecked = (jwt !== 'AHLI BIASA' && jwt !== 'AHLI AKTIF') ? 'checked' : '';
+        
+        row.innerHTML = `
+            <input type="checkbox" value="${s.id}" class="sijil-chk" ${isChecked} style="width:auto; margin-right:10px;">
+            <div>
+                <div style="font-weight:bold; font-size:0.9rem;">${s.name}</div>
+                <div style="font-size:0.8rem; color:#666;">${jwt}</div>
+            </div>
+        `;
+        div.appendChild(row);
+    });
+},
+
+// 4. 全选/反选 Sijil
+toggleSijilChecks: (state) => {
+    document.querySelectorAll('.sijil-chk').forEach(c => c.checked = state);
+},
+
+// 5. 生成专业版 Sijil PDF (核心代码)
+generateSijilPDF: async () => {
+            const gid = document.getElementById('carta-group').value;
+            const chks = document.querySelectorAll('.sijil-chk:checked');
+            if(!gid || chks.length === 0) return alert("Sila pilih sekurang-kurangnya seorang murid.");
+            
+            const group = dbData.groups.find(g => g.id === gid);
+            const guruName = (metaData[gid] && metaData[gid].teacher) ? metaData[gid].teacher : ".......................";
+            
+            const container = document.getElementById('pdf-staging-content');
+            container.innerHTML = '';
+
+            chks.forEach(chk => {
+                const s = dbData.students.find(x => x.id === chk.value);
+                if(s) {
+                    const jwt = s.jawatan ? s.jawatan : "AHLI AKTIF";
+                    const cleanName = s.name.split(/[\u4e00-\u9fa5]/)[0].trim().toUpperCase();
+
+                    const page = document.createElement('div');
+                    page.className = 'sijil-page';
+                    
+                    page.innerHTML = `
+                        <div class="sijil-border">
+                            <div class="sijil-content-wrapper">
+                                <img src="https://upload.wikimedia.org/wikipedia/ms/6/69/Lencana_Sekolah_Jenis_Kebangsaan_%28C%29_True_Light.jpg" class="sijil-logo">
+                                <h1 class="sijil-title">Sijil Penghargaan</h1>
+                                <p class="sijil-text">Bahawasanya sijil ini dianugerahkan kepada</p>
+                                <div class="sijil-name">${cleanName}</div>
+                                <p class="sijil-text">Kerana sumbangan dan khidmat bakti beliau dalam</p>
+                                <div class="sijil-unit">${group.category} ${group.name}</div>
+                                <p class="sijil-text">Sebagai</p>
+                                <div class="sijil-role">
+                                    <span>${jwt}</span>
+                                </div>
+                                <div class="sijil-year">
+                                    tahun 2024/2025
+                                </div>
+                                <div class="sijil-sig-container">
+                                    <div class="sijil-sig-box"><div class="sijil-sig-line"></div><div class="sijil-sig-name">(${guruName})</div><div class="sijil-sig-role">Guru Penasihat</div></div>
+                                    <div class="sijil-sig-box"><div class="sijil-sig-line"></div><div class="sijil-sig-name">(KHOR GHEE KEAT)</div><div class="sijil-sig-role">PKKK</div></div>
+                                    <div class="sijil-sig-box"><div class="sijil-sig-line"></div><div class="sijil-sig-name">(NG SIOK TEAN)</div><div class="sijil-sig-role">Guru Besar</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(page);
+                }
+            });
+
+            // --- 这里的设定是关键 ---
+            const opt = { 
+                margin: 0, // 关键：设为0，消除顶部白边，完全由CSS控制布局
+                filename: `Sijil_${group.name}.pdf`, 
+                image: { type: 'jpeg', quality: 0.98 }, 
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true, 
+                    scrollY: 0  // 关键：防止滚动偏移
+                }, 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                // 移除 pagebreak 设置，因为我们在 CSS 里用了 page-break-after: always
+            };
+
+            alert("Menjana sijil... Sila tunggu.");
+            await html2pdf().set(opt).from(container).save();
+            container.innerHTML = '';
+        },
+
+        // --- SIJIL LOGIC ---
+        renderSijilSelection: () => {
+            const gid = document.getElementById('carta-group').value;
+            const div = document.getElementById('sijil-student-list');
+            div.innerHTML = '';
+            if(!gid) return;
+            const students = dbData.students.filter(s => s.groupId === gid);
+            students.forEach(s => {
+                const jwt = s.jawatan || 'AHLI AKTIF';
+                // Auto-check if not Ahli Biasa and not empty
+                const isRank = (jwt !== 'AHLI BIASA' && jwt !== '');
+                const row = document.createElement('div');
+                // [POINT 5] Fixed UI: left align, clean layout
+                row.style.borderBottom = '1px solid #eee'; 
+                row.style.padding='8px'; 
+                row.style.display='flex'; 
+                row.style.alignItems='center';
+                row.style.justifyContent='flex-start';
+                row.style.gap='10px';
+                
+                row.innerHTML = `
+                    <input type="checkbox" class="sijil-chk" value="${s.id}" ${isRank ? 'checked' : ''} style="width:20px; height:20px; margin:0;">
+                    <div style="display:flex; flex-direction:column;">
+                        <span style="font-weight:bold; font-size:0.95rem;">${s.name}</span>
+                        <span style="color:#1e40af; font-size:0.8rem;">${jwt}</span>
+                    </div>
+                `;
+                div.appendChild(row);
+            });
+        },
+        generateSijilPDF: async () => {
+            const gid = document.getElementById('carta-group').value;
+            const chks = document.querySelectorAll('.sijil-chk:checked');
+            if(!gid || chks.length === 0) return alert("Sila pilih sekurang-kurangnya seorang murid.");
+            
+            const group = dbData.groups.find(g => g.id === gid);
+            const guruName = (metaData[gid] && metaData[gid].teacher) ? metaData[gid].teacher : ".......................";
+            
+            const container = document.getElementById('pdf-staging-content');
+            container.innerHTML = '';
+
+            chks.forEach(chk => {
+                const s = dbData.students.find(x => x.id === chk.value);
+                if(s) {
+                    const jwt = s.jawatan ? s.jawatan : "AHLI AKTIF";
+                    
+                    // --- 修改点：只取 马来名 + 班级 (过滤掉中文) ---
+                    // 1. 获取全名
+                    let displayName = s.name; 
+                    // 2. 将中文字符替换为空 (删除中文)
+                    displayName = displayName.replace(/[\u4e00-\u9fa5]/g, ""); 
+                    // 3. 去除前后多余空格并转大写
+                    displayName = displayName.trim().toUpperCase();
+
+                    const page = document.createElement('div');
+                    page.className = 'sijil-page';
+                    
+                    page.innerHTML = `
+                        <div class="sijil-border">
+                            <div class="sijil-content-wrapper">
+                                <img src="https://upload.wikimedia.org/wikipedia/ms/6/69/Lencana_Sekolah_Jenis_Kebangsaan_%28C%29_True_Light.jpg" class="sijil-logo">
+                                <h1 class="sijil-title">Sijil Penghargaan</h1>
+                                <p class="sijil-text">Bahawasanya sijil ini dianugerahkan kepada</p>
+                                
+                                <!-- 显示过滤后的名字 (无中文) -->
+                                <div class="sijil-name">${displayName}</div>
+                                
+                                <p class="sijil-text">Kerana sumbangan dan khidmat bakti beliau dalam</p>
+                                <div class="sijil-unit">${group.category} ${group.name}</div>
+                                <p class="sijil-text">Sebagai</p>
+                                <div class="sijil-role">
+                                    <span>${jwt}</span>
+                                </div>
+                                <div class="sijil-year">
+                                    tahun 2024/2025
+                                </div>
+                            </div>
+                            <div class="sijil-sig-container">
+                                <div class="sijil-sig-box"><div class="sijil-sig-line"></div><div class="sijil-sig-name">(${guruName})</div><div class="sijil-sig-role">Guru Penasihat</div></div>
+                                <div class="sijil-sig-box"><div class="sijil-sig-line"></div><div class="sijil-sig-name">(KHOR GHEE KEAT)</div><div class="sijil-sig-role">PKKK</div></div>
+                                <div class="sijil-sig-box"><div class="sijil-sig-line"></div><div class="sijil-sig-name">(NG SIOK TEAN)</div><div class="sijil-sig-role">Guru Besar</div></div>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(page);
+                }
+            });
+
+            const opt = { 
+                margin: 0, 
+                filename: `Sijil_${group.name}.pdf`, 
+                image: { type: 'jpeg', quality: 0.98 }, 
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true, 
+                    scrollY: 0 
+                }, 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            alert("Menjana sijil... Sila tunggu.");
+            await html2pdf().set(opt).from(container).save();
+            container.innerHTML = '';
+        },
+
+        // --- MANAGEMENT ---
+        renderManageList: () => {
+            const gid = document.getElementById('mng-group').value;
+            const list = document.getElementById('mng-list'); list.innerHTML = '';
+            if(!gid) return;
+            const students = dbData.students.filter(s => s.groupId === gid);
+            students.forEach(s => {
+                const d = document.createElement('div');
+                d.style.padding="10px"; d.style.borderBottom="1px solid #eee"; d.style.display="flex"; d.style.justifyContent="space-between";
+                d.innerHTML = `<span>${s.name}</span><button class="btn-outline" onclick="app.editStudent('${s.id}')">Edit</button>`;
+                list.appendChild(d);
+            });
+        },
+        deleteGroup: async () => {
+            const gid = document.getElementById('mng-group').value;
+            if(!gid) return alert("Sila pilih kumpulan dahulu.");
+            const g = dbData.groups.find(x => x.id === gid);
+            if(!confirm(`⚠️ AMARAN: Adakah anda pasti mahu memadam kumpulan:\n\n[${g.year}] ${g.name}\n\nTindakan ini tidak boleh diundur!`)) return;
+            const newGroups = dbData.groups.filter(x => x.id !== gid);
+            await set(ref(db, 'school_data_v11/groups'), newGroups);
+            alert("✅ Kumpulan telah dipadam.");
+            document.getElementById('mng-group').innerHTML = '<option value="">-- Pilih --</option>';
+            document.getElementById('mng-list').innerHTML = '';
+        },
+        updateEditTargetGroups: () => {
+            const y = document.getElementById('edit-filter-year').value;
+            const c = document.getElementById('edit-filter-cat').value;
+            const sel = document.getElementById('edit-target-group'); sel.innerHTML = '';
+            let list = dbData.groups || [];
+            if(y) list = list.filter(g => g.year === y);
+            if(c) list = list.filter(g => g.category === c);
+            list.sort((a,b) => a.name.localeCompare(b.name));
+            list.forEach(g => { sel.innerHTML += `<option value="${g.id}">[${g.year}] ${g.name}</option>`; });
+        },
+        editStudent: (sid) => {
+            const s = dbData.students.find(x => x.id === sid);
+            if(!s) return;
+            document.getElementById('edit-id').value = sid; document.getElementById('edit-name').value = s.name;
+            const currentGroup = dbData.groups.find(g => g.id === s.groupId);
+            if(currentGroup) { document.getElementById('edit-filter-year').value = currentGroup.year; document.getElementById('edit-filter-cat').value = currentGroup.category; }
+            app.updateEditTargetGroups(); document.getElementById('edit-target-group').value = s.groupId;
+            document.getElementById('edit-modal').style.display = 'flex';
+        },
+        saveStudentEdit: async () => {
+            const sid = document.getElementById('edit-id').value;
+            const idx = dbData.students.findIndex(s => s.id === sid);
+            if(idx > -1) {
+                const u = {}; u[`school_data_v11/students/${idx}/name`] = document.getElementById('edit-name').value;
+                u[`school_data_v11/students/${idx}/groupId`] = document.getElementById('edit-target-group').value;
+                await update(ref(db), u);
+                document.getElementById('edit-modal').style.display = 'none'; app.renderManageList();
+            }
+        },
+        deleteStudent: async () => {
+            if(!confirm("Padam murid ini?")) return;
+            const sid = document.getElementById('edit-id').value;
+            const list = dbData.students.filter(s => s.id !== sid);
+            await set(ref(db, 'school_data_v11/students'), list);
+            document.getElementById('edit-modal').style.display = 'none'; app.renderManageList();
+        },
+        addStudents: async () => {
+            const gid = document.getElementById('mng-group').value;
+            const txt = document.getElementById('batch-names').value;
+            if(!gid || !txt) return alert("Pilih kumpulan & isi nama.");
+            const names = txt.split('\n').map(x=>x.trim()).filter(x=>x);
+            const newS = names.map(n => ({ id:'s_'+Date.now()+Math.random().toString(36).substr(2,4), groupId:gid, name:n, attendance:{} }));
+            await update(ref(db), { 'school_data_v11/students': [...dbData.students, ...newS] });
+            alert("Ditambah!"); document.getElementById('batch-names').value=''; app.renderManageList();
+        },
+        addGroup: async () => {
+            const n = document.getElementById('new-group-name').value;
+            if(!n) return alert("Sila masukkan nama kumpulan.");
+            let currentList = [];
+            if (dbData.groups) currentList = Array.isArray(dbData.groups) ? dbData.groups : Object.values(dbData.groups);
+            const g = { id: 'g_' + Date.now(), year: document.getElementById('new-year').value, category: document.getElementById('new-cat').value, name: n };
+            currentList.push(g);
+            await update(ref(db), { 'school_data_v11/groups': currentList });
+            alert("✅ Kumpulan berjaya diwujudkan!"); document.getElementById('new-group-name').value = '';
+        },
+
+        // --- ARCHIVE / EXPORT ---
+        fetchReports: () => {
+            const list = document.getElementById('archive-list'); list.innerHTML = '';
+            const gid = document.getElementById('arc-group').value;
+            let display = reportsData;
+            if(gid) { const gObj = dbData.groups.find(g => g.id === gid); if(gObj) display = display.filter(r => (r.groupId === gid) || (r.groupName.includes(gObj.name))); }
+            display.sort((a,b) => b.timestamp.localeCompare(a.timestamp));
+            if(display.length===0) { list.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:10px;">Tiada Laporan.</td></tr>'; return; }
+            display.forEach(r => {
+                const d = new Date(r.timestamp).toLocaleDateString();
+                list.innerHTML += `<tr><td style="text-align:center"><input type="checkbox" value="${r.id}" class="arc-chk"></td><td><b>${r.groupName}</b><br><span style="color:#666;font-size:0.8rem;">Dicipta: ${d}</span></td><td style="text-align:center"><button class="btn-outline" onclick="app.viewReport('${r.id}')">Lihat</button></td></tr>`;
+            });
+        },
+        viewReport: (rid) => {
+            const r = reportsData.find(x => x.id == rid); if(!r) return;
+            const data = { groupName: r.groupName, teacher: r.meta.teacher, place: r.meta.place, officer: r.meta.officer, attRows: r.attendanceHtml, activity: r.content.activity, sivik: r.content.sivik, pikebm: r.content.pikebm, other: r.content.other };
+            document.getElementById('view-content').innerHTML = `<div class="print-page">${app.buildHTML(data, false)}</div>`;
+            document.getElementById('view-modal').style.display = 'flex';
+        },
+        printCombinedPDF: async () => {
+            const chks = document.querySelectorAll('.arc-chk:checked'); if(chks.length===0) return alert("Pilih laporan.");
+            const container = document.getElementById('pdf-staging-content'); container.innerHTML = '';
+            for(const c of chks) {
+                const r = reportsData.find(x => x.id == c.value);
+                if(r) {
+                    const data = { groupName: r.groupName, teacher: r.meta.teacher, place: r.meta.place, officer: r.meta.officer, attRows: r.attendanceHtml, activity: r.content.activity, sivik: r.content.sivik, pikebm: r.content.pikebm, other: r.content.other };
+                    const page = document.createElement('div'); page.className = "print-page"; page.innerHTML = app.buildHTML(data, false); container.appendChild(page);
+                }
+            }
+            const opt = { margin:0, filename:'Gabungan.pdf', image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2, useCORS:true, scrollY:0}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} };
+            await html2pdf().set(opt).from(container).save(); container.innerHTML = '';
+        },
+        renderStatsTable: () => {
+            const gid = document.getElementById('arc-group').value;
+            const div = document.getElementById('stats-container');
+            if(!gid) { div.innerHTML='<div style="padding:10px;text-align:center;color:#999;">Pilih kumpulan di atas.</div>'; return; }
+            const students = dbData.students.filter(s => s.groupId === gid);
+            let html = '<table class="data-table"><thead><tr><th>Nama</th><th>Hadir</th><th>Markah (40%)</th><th>Jawatan</th><th>Markah (10%)</th></tr></thead><tbody>';
+            students.forEach(s => {
+                let p=0; if(s.attendance) Object.values(s.attendance).forEach(v => { if(v) p++; });
+                let attScore = (p / 12) * 40; if (attScore > 40) attScore = 40;
+                const jwt = s.jawatan ? s.jawatan.toUpperCase() : 'AHLI AKTIF';
+                let jwtScore = JAWATAN_SCORE[jwt];
+                if(!jwtScore) { if(jwt.includes('AJK')) jwtScore = 5; else jwtScore = 4; }
+                html += `<tr><td>${s.name}</td><td style="text-align:center">${p}</td><td style="text-align:center;">${attScore.toFixed(1)}</td><td style="font-size:0.8rem; color:#666;">${s.jawatan || '-'}</td><td style="text-align:center; font-weight:bold;">${jwtScore}</td></tr>`;
+            });
+            html += '</tbody></table>'; div.innerHTML = html;
+        },
+        exportExcel: () => {
+            const gid = document.getElementById('arc-group').value; if(!gid) return alert("Pilih Kumpulan.");
+            const g = dbData.groups.find(x => x.id === gid);
+            const students = dbData.students.filter(s => s.groupId === gid);
+            const rows = [["Nama Murid", "Kelas", "Hadir", "Markah Hadir (40%)", "Jawatan", "Markah Jawatan (10%)"]];
+            students.forEach(s => {
+                let p=0; if(s.attendance) Object.values(s.attendance).forEach(v => { if(v) p++; });
+                let attScore = (p / 12) * 40; if(attScore > 40) attScore = 40;
+                const jwt = s.jawatan ? s.jawatan.toUpperCase() : 'AHLI AKTIF';
+                let jwtScore = JAWATAN_SCORE[jwt] || (jwt.includes('AJK') ? 5 : 4);
+                rows.push([s.name, s.className||'', p, attScore.toFixed(1), s.jawatan||'-', jwtScore]);
+            });
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Prestasi"); XLSX.writeFile(wb, `${g.name}_Prestasi.xlsx`);
+        },
+        renderBatchList: () => {
+            const y = document.getElementById('batch-filter-year').value;
+            const c = document.getElementById('batch-filter-cat').value;
+            const div = document.getElementById('batch-group-list'); div.innerHTML = '';
+            if(!dbData.groups) return;
+            let list = dbData.groups;
+            if(y) list = list.filter(g => g.year === y);
+            if(c) list = list.filter(g => g.category === c);
+            list.sort((a,b) => a.name.localeCompare(b.name));
+            list.forEach(g => {
+                const row = document.createElement('div'); row.style.padding = "5px"; row.style.borderBottom = "1px solid #eee";
+                row.innerHTML = `<label style="display:flex;align-items:center;cursor:pointer;font-weight:normal;"><input type="checkbox" value="${g.id}" class="batch-chk" style="width:auto;margin-right:8px;"> [${g.year}] ${g.name}</label>`;
+                div.appendChild(row);
+            });
+        },
+        toggleBatchChecks: (status) => { document.querySelectorAll('.batch-chk').forEach(c => c.checked = status); },
+        exportBatchExcel: () => {
+            const chks = document.querySelectorAll('.batch-chk:checked');
+            if(chks.length === 0) return alert("Pilih kumpulan.");
+            const wb = XLSX.utils.book_new();
+            let count = 0;
+            chks.forEach(chk => {
+                const gid = chk.value; const group = dbData.groups.find(g => g.id === gid); if(!group) return;
+                const students = dbData.students.filter(s => s.groupId === gid);
+                if(students.length > 0) {
+                    const rows = [["Nama Murid", "Kelas", "Hadir", "Markah Hadir (40%)", "Jawatan", "Markah Jawatan (10%)"]];
+                    students.forEach(s => {
+                        let p=0; if(s.attendance) Object.values(s.attendance).forEach(v => { if(v) p++; });
+                        let attScore = (p / 12) * 40; if(attScore > 40) attScore = 40;
+                        const jwt = s.jawatan ? s.jawatan.toUpperCase() : 'AHLI AKTIF';
+                        let jwtScore = JAWATAN_SCORE[jwt] || (jwt.includes('AJK') ? 5 : 4);
+                        rows.push([s.name, s.className || '', p, attScore.toFixed(1), s.jawatan||'-', jwtScore]);
+                    });
+                    const ws = XLSX.utils.aoa_to_sheet(rows);
+                    let sheetName = `${group.year}_${group.name}`.replace(/[\\/?*\[\]]/g, "").substring(0, 30);
+                    XLSX.utils.book_append_sheet(wb, ws, sheetName); count++;
+                }
+            });
+            if(count === 0) return alert("Tiada murid."); XLSX.writeFile(wb, "Data_Gabungan_Penuh.xlsx");
+        },
+        toggleAllArchive: (src) => { document.querySelectorAll('.arc-chk').forEach(c => c.checked = src.checked); },
+        // --- 3. SHOW PROFILE (UPDATED: FULL DETAILS) ---
+        showProfile: (sid) => {
+            // 1. 找到当前点击的学生对象
+            const s = dbData.students.find(x => x.id === sid);
+            if(!s) return;
+            
+            // 2. 设置弹窗标题
+            document.getElementById('prof-name').innerText = s.name;
+            
+            // 3. 找出所有同名的学生记录 (跨所有团体)
+            const related = dbData.students.filter(x => x.name === s.name); 
+            
+            let html = `
+                <table class="data-table" style="width:100%;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th style="padding:10px;">Kumpulan / Jawatan</th>
+                            <th style="text-align:center; width:80px;">Hadir</th>
+                            <th style="text-align:center; width:80px;">Tidak Hadir</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            related.forEach(rec => {
+                // 获取团体信息
+                const grp = dbData.groups.find(g => g.id === rec.groupId);
+                if(!grp) return;
+                
+                let p = 0; // 出席数
+                let a = 0; // 缺席数
+                let absDates = []; // 缺席日期列表
+
+                // 计算出席率 (使用 Object.entries 确保拿到日期)
+                if(rec.attendance) {
+                    Object.entries(rec.attendance).forEach(([date, isPresent]) => { 
+                        if(isPresent === true) {
+                            p++; 
+                        } else { 
+                            a++; 
+                            absDates.push(date); // 收集缺席日期
+                        } 
+                    });
+                }
+                
+                // 日期排序
+                absDates.sort();
+                
+                const jawatan = rec.jawatan || '-';
+                
+                // --- 行 1: 基本信息 ---
+                html += `
+                    <tr style="border-top:2px solid #e5e7eb;">
+                        <td style="padding:10px;">
+                            <div style="font-size:0.75rem; color:#666; text-transform:uppercase; font-weight:bold;">${grp.category}</div>
+                            <div style="font-size:1rem; font-weight:bold; color:#000;">${grp.name}</div>
+                            <div style="font-size:0.9rem; color:#1e40af; margin-top:2px;">🔹 ${jawatan}</div>
+                        </td>
+                        <td style="text-align:center; font-size:1.2rem; font-weight:bold; color:#16a34a; vertical-align:middle;">
+                            ${p}
+                        </td>
+                        <td style="text-align:center; font-size:1.2rem; font-weight:bold; color:#dc2626; vertical-align:middle;">
+                            ${a}
+                        </td>
+                    </tr>
+                `;
+                
+                // --- 行 2: 缺席详情 (如果有缺席才显示) ---
+                if(absDates.length > 0) {
+                    html += `
+                        <tr>
+                            <td colspan="3" style="background:#fef2f2; padding:8px 10px; color:#991b1b; font-size:0.85rem; border-bottom:1px solid #e5e7eb;">
+                                <strong>⚠️ Tarikh Tidak Hadir:</strong><br>
+                                ${absDates.join(', ')}
+                            </td>
+                        </tr>
+                    `;
+                }
+            });
+            
+            html += '</tbody></table>';
+            
+            // 4. 注入 HTML 并显示弹窗
+            document.getElementById('prof-content').innerHTML = html;
+            document.getElementById('profile-modal').style.display = 'flex';
+        },
+    };
+    init();
+</script>
+</body>
+</html>
