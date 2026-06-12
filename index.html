@@ -534,7 +534,8 @@
     let reportsData = [];
     let tempAttendance = {};
     const SIVIK_MAP = { 0: 'Kasih Sayang', 1: 'Hormat-menghormati', 2: 'Bertanggungjawab', 3: 'Kegembiraan', 4: 'Kasih Sayang', 5: 'Hormat-menghormati', 6: 'Bertanggungjawab', 7: 'Kegembiraan', 8: 'Kasih Sayang', 9: 'Hormat-menghormati', 10: 'Bertanggungjawab', 11: 'Kegembiraan' };
-    const JAWATAN_SCORE = { 'PENGERUSI': 10, 'NAIB PENGERUSI': 8, 'SETIAUSAHA': 7, 'BENDAHARI': 7, 'PENOLONG SETIAUSAHA': 6, 'PENOLONG BENDAHARI': 6, 'AJK': 5, 'AHLI AKTIF': 4, 'AHLI BIASA': 1 };
+    const JAWATAN_SCORE = { 'PENGERUSI': 10, 'NAIB PENGERUSI': 8, 'SETIAUSAHA': 7, 'BENDAHARI': 7, '
+		SETIAUSAHA': 6, 'NAIB BENDAHARI': 6, 'AJK': 5, 'AHLI AKTIF': 4, 'AHLI BIASA': 1 };
 
     function init() {
         onValue(ref(db, 'school_data_v11'), snap => {
@@ -596,7 +597,7 @@
             const students = dbData.students.filter(s => s.groupId === gid);
             if(students.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="padding:10px;text-align:center;">Tiada murid.</td></tr>'; return; }
 
-            const jawatanList = ['AHLI BIASA', 'AHLI AKTIF', 'AJK', 'PENOLONG BENDAHARI', 'BENDAHARI', 'PENOLONG SETIAUSAHA', 'SETIAUSAHA', 'NAIB PENGERUSI', 'PENGERUSI'];
+            const jawatanList = ['AHLI BIASA', 'AHLI AKTIF', 'AJK', 'NAIB BENDAHARI', 'BENDAHARI', 'NAIB SETIAUSAHA', 'SETIAUSAHA', 'NAIB PENGERUSI', 'PENGERUSI'];
 
             students.forEach(s => {
                 let rawName = s.name || ""; // 完整名字 (Adam (4M) 亚当)
@@ -846,9 +847,9 @@ generateCarta: () => {
         pengerusi: find('PENGERUSI'),
         naib: find('NAIB PENGERUSI'),
         setia: find('SETIAUSAHA'),
-        penSetia: find('PENOLONG SETIAUSAHA'),
+        penSetia: find('NAIB SETIAUSAHA'),
         bend: find('BENDAHARI'),
-        penBend: find('PENOLONG BENDAHARI'),
+        penBend: find('NAIB BENDAHARI'),
         ajk: findAll('AJK') 
     };
 
@@ -873,9 +874,9 @@ generateCarta: () => {
             <tr><td>Pengerusi</td><td>: ${fmt(d.pengerusi)}</td></tr>
             <tr><td>Naib Pengerusi</td><td>: ${fmt(d.naib)}</td></tr>
             <tr><td>Setiausaha</td><td>: ${fmt(d.setia)}</td></tr>
-            <tr><td>Penolong Setiausaha</td><td>: ${fmt(d.penSetia)}</td></tr>
+            <tr><td>NAIB Setiausaha</td><td>: ${fmt(d.penSetia)}</td></tr>
             <tr><td>Bendahari</td><td>: ${fmt(d.bend)}</td></tr>
-            <tr><td>Penolong Bendahari</td><td>: ${fmt(d.penBend)}</td></tr>
+            <tr><td>NAIB Bendahari</td><td>: ${fmt(d.penBend)}</td></tr>
             <tr><td style="vertical-align:top;">AJK</td><td>: 
                 <ol style="margin:0; padding-left:20px;">
                     ${d.ajk.map(s => `<li>${fmt(s)}</li>`).join('')}
