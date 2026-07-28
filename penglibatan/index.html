@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <title>Koko System V9.7 - Ultimate Stable</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary: #1e3a8a; --secondary: #3b82f6; --success: #16a34a; --danger: #dc2626; --bg: #f3f4f6; }
+        body { font-family: 'Segoe UI', system-ui; background: var(--bg); margin: 0; color: #333; font-size: 14px; }
+        .nav-tabs { background: var(--primary); display: flex; padding: 0 20px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .tab-btn { color: #bfdbfe; padding: 15px 20px; cursor: pointer; border: none; background: none; font-weight: bold; }
+        .tab-btn.active { color: white; background: var(--secondary); border-bottom: 4px solid #fbbf24; }
+        .container { max-width: 1480px; margin: 20px auto; padding: 0 15px; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; border: 1px solid #e5e7eb; }
+        .hidden { display: none !important; }
+        .grid-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #cbd5e1; margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+        .data-table { width: 100%; border-collapse: collapse; background: white; font-size: 12.5px; }
+        .data-table th { position: sticky; top: 0; background: #f1f5f9; padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; z-index: 10; }
+        .data-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+        .btn { padding: 10px 15px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-blue { background: var(--secondary); } .btn-green { background: var(--success); } .btn-red { background: var(--danger); }
+        .switch-row { display: flex; gap: 20px; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #cbd5e1; margin-bottom: 20px; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; margin: 0 5px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--secondary); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        select, input { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+        .badge { padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; background: #dbeafe; color: #1e40af; }
+        .filter-bar { display: flex; gap: 10px; margin-bottom: 15px; align-items: center; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 85%; max-height: 85vh; overflow-y: auto; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+        .close-btn { position: absolute; top: 15px; right: 25px; font-size: 28px; cursor: pointer; color: #999; }
+    </style>
+</head>
+<body>
+
+<div class="nav-tabs">
+    <button class="tab-btn active" onclick="showTab('class-mng', this)">👥 1. 班级管理</button>
+    <button class="tab-btn" onclick="showTab('record-entry', this)">📝 2. 比赛录入</button>
+    <button class="tab-btn" onclick="showTab('master-list', this)">📊 3. 导入导出总表</button>
+    <button class="tab-btn" onclick="showTab('score-analysis', this)">🏆 4. 最高分分析</button>
+    <button class="tab-btn" style="background: #000;" onclick="showTab('admin-incentive', this)">🔒 5. 奖励金结算</button>
+</div>
+
+<div class="container">
+    <div id="tab-class-mng" class="tab-content">
+        <div class="card">
+            <div id="promotion-lock"><button class="btn btn-blue" style="background:#475569" onclick="unlockAdminTools()">🛠️ Alat Pentadbiran Tahunan</button></div>
+            <div id="admin-tools" class="hidden" style="background:#fff7ed; padding:20px; border-radius:12px; margin-bottom:20px; border:1px dashed #fdba74">
+                <div class="filter-bar">
+                    <label class="btn btn-blue">📤 Upload Nama Murid (Multi-Sheet) <input type="file" style="display:none" onchange="importNewStudentList(this)"></label>
+                    <button class="btn btn-red" onclick="processYearEndRollover()">⚡ SATU KLIK: Naik Kelas (1-6)</button>
+                    <button class="btn btn-blue" style="background:#0ea5e9" onclick="toggleConfigTool()">📋 Konfigurasi Nama Kelas</button>
+                </div>
+                <div id="class-config-tool" class="hidden"><div id="class-inputs-grid" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px; margin-top:15px"></div><button class="btn btn-green" onclick="saveClassConfigs()">💾 Simpan Konfigurasi</button></div>
+            </div>
+            <hr style="margin:20px 0; border:0; border-top:1px solid #eee">
+            <h2>👥 Agihan Kumpulan (Tahun 6->1)</h2>
+            <div class="filter-bar">
+                <select id="mng-year-filter" style="width: 150px;" onchange="updateClassSelector('mng-year-filter','mng-class-filter'); renderMngTable();"></select>
+                <select id="mng-class-filter" style="width: 150px;" onchange="renderMngTable()"></select>
+                <button class="btn btn-blue" onclick="exportMngExcel()">📥 Export List</button>
+            </div>
+            <div style="max-height: 550px; overflow-y: auto; border:1px solid #eee"><table class="data-table"><thead><tr><th>Nama</th><th>Kelas</th><th>Kelab</th><th>Uniform</th><th>Sukan</th><th>Simpan</th></tr></thead><tbody id="mng-body"></tbody></table></div>
+        </div>
+    </div>
+
+    <div id="tab-record-entry" class="tab-content hidden">
+        <div class="card">
+            <h2>📝 Pendaftaran Keputusan Pertandingan</h2>
+            <div class="switch-row">
+                <div class="form-group"><span>Format: Off/On</span><label class="switch"><input type="checkbox" id="mode-online"><span class="slider"></span></label></div>
+                <div class="form-group"><span>Unit: Indi/Pasu</span><label class="switch"><input type="checkbox" id="mode-group"><span class="slider"></span></label></div>
+                <div class="form-group"><span>Sistem: Rank/Ping</span><label class="switch"><input type="checkbox" id="mode-medal"><span class="slider"></span></label></div>
+                <div class="form-group"><span>PAJSK: No/Yes</span><label class="switch"><input type="checkbox" id="mode-pajsk" checked><span class="slider"></span></label></div>
+            </div>
+            <div class="grid-form">
+                <div class="form-group"><label>JENIS</label><select id="comp-type"><option>KELAB & PERSATUAN</option><option>BADAN BERUNIFORM</option><option>SUKAN & PERMAINAN</option></select></div>
+                <div class="form-group"><label>PERINGKAT</label><select id="comp-level"><option>ANTARABANGSA</option><option>KEBANGSAAN</option><option>NEGERI</option><option>ZON/DAERAH</option><option>SEKOLAH</option></select></div>
+                <div class="form-group"><label>PENGLIBATAN</label><select id="comp-role"><option>1</option><option>2</option><option>3</option></select></div>
+                <div class="form-group"><label>PENCAPAIAN</label><select id="comp-rank"><option>PENYERTAAN</option><option>JOHAN</option><option>NAIB JOHAN</option><option>KETIGA</option><option>EXCELLENT AWARD</option><option>KEEMPAT</option><option>KELIMA</option><option>EMAS</option><option>PERAK</option><option>GANGSA</option></select></div>
+                <div style="grid-column: span 2;"><label>Nama Pertandingan</label><input type="text" id="comp-name"></div>
+                <div class="form-group"><label>Tarikh</label><input type="date" id="comp-date"></div>
+                <div class="form-group"><label>Anjuran</label><input type="text" id="comp-org"></div>
+            </div>
+            <div class="filter-bar">
+                <select id="entry-year-filter" style="width:120px" onchange="updateClassSelector('entry-year-filter','entry-class-filter'); renderEntryTable();"></select>
+                <select id="entry-class-filter" style="width:120px" onchange="renderEntryTable()"></select>
+                <input type="text" id="search-input" placeholder="🔍 Cari nama murid..." style="flex:3; min-width:200px">
+                <div>Selected: <span id="count-display">0</span></div>
+            </div>
+            <div style="max-height:350px; overflow-y:auto; border:1px solid #ddd"><table class="data-table"><thead><tr><th><input type="checkbox" onclick="toggleAllVisible(this)"></th><th>Nama</th><th>Kelas</th></tr></thead><tbody id="entry-body"></tbody></table></div>
+            <button class="btn btn-green" style="width:100%; margin-top:20px; padding:15px; font-size:1.1rem" onclick="saveRecords()">💾 Simpan Rekod</button>
+        </div>
+    </div>
+
+    <div id="tab-master-list" class="tab-content hidden">
+        <div class="card">
+            <div class="filter-bar">
+                <h2>📊 Rekod Keseluruhan</h2>
+                <input type="text" id="master-search-input" placeholder="🔍 Cari..." oninput="renderMasterTable()">
+                <select id="master-year-filter" onchange="updateClassSelector('master-year-filter','master-class-filter'); renderMasterTable();"></select>
+                <select id="master-class-filter" onchange="renderMasterTable()"></select>
+                <button class="btn btn-blue" onclick="exportMasterExcel()">📥 Export (15-Col)</button>
+                <label class="btn btn-green">📤 Import <input type="file" style="display:none" onchange="importMasterExcel(this)"></label>
+            </div>
+            <div style="max-height:600px; overflow-y:auto;"><table class="data-table"><thead><tr><th>BIL</th><th>Nama</th><th>Kelas</th><th>Pertandingan</th><th>Format</th><th>Unit</th><th>Sis</th><th>PAJSK</th><th>Level</th><th>Rank</th><th>Tindakan</th></tr></thead><tbody id="master-body"></tbody></table></div>
+        </div>
+    </div>
+
+    <div id="tab-score-analysis" class="tab-content hidden">
+        <div class="card">
+            <div class="filter-bar"><h2>🏆 Analisis PAJSK</h2><button class="btn btn-green" onclick="exportAnalysisExcel()">📥 Export Analisis</button></div>
+            <div class="filter-bar"><select id="analysis-year-filter" onchange="updateClassSelector('analysis-year-filter','analysis-class-filter'); renderAnalysisTable();"></select><select id="analysis-class-filter" onchange="renderAnalysisTable()"></select></div>
+            <div style="max-height:600px; overflow-y:auto;"><table class="data-table"><thead><tr><th>Nama</th><th>Kelas</th><th>Kategori</th><th>Max Pgl</th><th>M</th><th>Max Pcp</th><th>M</th></tr></thead><tbody id="analysis-body"></tbody></table></div>
+        </div>
+    </div>
+
+    <div id="tab-admin-incentive" class="tab-content hidden">
+        <div id="incentive-locked" style="text-align:center; padding:60px" class="card">
+            <h3>🔒 Kata Laluan</h3><input type="password" id="admin-pass" style="padding:10px; margin-bottom:20px"><br><button class="btn btn-blue" onclick="unlockIncentive()">Buka Kunci</button>
+        </div>
+        <div id="incentive-unlocked" class="hidden">
+            <div class="card">
+                <div class="filter-bar"><h2>💰 Summary奖励金</h2><button class="btn btn-green" onclick="exportIncentiveExcel()">📥 Export Detailed Report</button></div>
+                <div class="filter-bar"><select id="incentive-year-filter" onchange="updateIncentiveClassSelector(); renderIncentiveTable();"></select><select id="incentive-class-filter" onchange="renderIncentiveTable()"></select> <div style="flex:1"></div><div style="font-size:24px; font-weight:800; color:green">Total RM <span id="grand-total">0.00</span></div></div>
+                <table class="data-table"><thead><tr><th>Nama (Klik Detail)</th><th>Kelas</th><th>Menang</th><th>Jumlah (RM)</th><th>Tindakan</th></tr></thead><tbody id="incentive-body"></tbody></table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="edit-modal" class="modal hidden"><div class="modal-content"><span class="close-btn" onclick="closeModal('edit-modal')">&times;</span><h2>Edit</h2><div class="switch-row" style="margin:15px 0"><span>Off/On</span><label class="switch"><input type="checkbox" id="edit-mode-online"><span class="slider"></span></label><span>Ind/Pas</span><label class="switch"><input type="checkbox" id="edit-mode-group"><span class="slider"></span></label><span>Rank/Ping</span><label class="switch"><input type="checkbox" id="edit-mode-medal"><span class="slider"></span></label><span>No/Yes PAJSK</span><label class="switch"><input type="checkbox" id="edit-mode-pajsk"><span class="slider"></span></label></div><div class="grid-form"><div class="form-group"><label>JENIS</label><select id="edit-comp-type"><option>KELAB & PERSATUAN</option><option>BADAN BERUNIFORM</option><option>SUKAN & PERMAINAN</option></select></div><div class="form-group"><label>LEVEL</label><select id="edit-comp-level"><option>ANTARABANGSA</option><option>KEBANGSAAN</option><option>NEGERI</option><option>ZON/DAERAH</option><option>SEKOLAH</option></select></div><div class="form-group"><label>RANK</label><select id="edit-comp-rank"><option>PENYERTAAN</option><option>JOHAN</option><option>NAIB JOHAN</option><option>KETIGA</option><option>EXCELLENT AWARD</option><option>KEEMPAT</option><option>KELIMA</option><option>EMAS</option><option>PERAK</option><option>GANGSA</option></select></div><div class="form-group"><label>ROLE</label><select id="edit-comp-role"><option>1</option><option>2</option><option>3</option></select></div><div style="grid-column: span 2;"><label>Nama</label><input type="text" id="edit-comp-name"></div><div class="form-group"><label>Tarikh</label><input type="date" id="edit-comp-date"></div><div class="form-group"><label>Anjuran</label><input type="text" id="edit-comp-org"></div></div><button class="btn btn-blue" onclick="saveEditRecord()">Simpan</button></div></div>
+    <div id="detail-modal" class="modal hidden"><div class="modal-content"><span class="close-btn" onclick="closeModal('detail-modal')">&times;</span><h2 id="modal-student-name"></h2><table class="data-table"><thead><tr><th>Pertandingan</th><th>Fmt</th><th>Unit</th><th>Sis</th><th>Level</th><th>Rank</th><th>RM</th></tr></thead><tbody id="modal-body"></tbody></table><div style="text-align:right; margin-top:20px; font-size:20px; font-weight:bold">Total: RM <span id="modal-total"></span></div></div></div>
+</div>
+
+<script>
+// --- 1. ATTACH FUNCTIONS TO WINDOW ---
+window.showTab = (id, btn) => { document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden')); document.getElementById('tab-' + id).classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); };
+window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
+window.unlockIncentive = () => { if (document.getElementById('admin-pass').value === 'admin123') { document.getElementById('incentive-locked').classList.add('hidden'); document.getElementById('incentive-unlocked').classList.remove('hidden'); renderIncentiveTable(); } };
+window.toggleConfigTool = () => document.getElementById('class-config-tool').classList.toggle('hidden');
+
+window.showStudentBreakdown = (name) => {
+    document.getElementById('modal-student-name').innerText = name;
+    const b = document.getElementById('modal-body'), tE = document.getElementById('modal-total');
+    let total = 0, h = "";
+    competitionRecords.filter(r => r.studentName === name).forEach(r => {
+        const amt = getIncentiveAmount(r);
+        if (amt > 0) { total += amt; h += `<tr><td>${escapeHtml(r.competitionName)}</td><td>${r.isOnline?"On":"Off"}</td><td>${r.isGroup?"Pasu":"Ind"}</td><td>${r.isMedalSystem?"Ping":"Rank"}</td><td>${escapeHtml(r.level)}</td><td>${escapeHtml(r.rank)}</td><td style="color:green; font-weight:bold">RM ${amt.toFixed(2)}</td></tr>`; }
+    });
+    b.innerHTML = h; tE.innerText = total.toFixed(2); document.getElementById('detail-modal').classList.remove('hidden');
+};
+
+// --- 2. CONFIG ---
+const firebaseConfig = { apiKey: "AIzaSyDO5myI3uksCCJouBuAEcGoRTkzzUzpHy8", authDomain: "school-attendance-v11.firebaseapp.com", databaseURL: "https://school-attendance-v11-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "school-attendance-v11" };
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const POINT_SYSTEM = {
+    PENGLIBATAN: { "ANTARABANGSA": {1:20, 2:15, 3:10}, "KEBANGSAAN": {1:17, 2:12, 3:8}, "NEGERI": {1:14, 2:10, 3:6}, "ZON/DAERAH": {1:11, 2:8, 3:4}, "SEKOLAH": {1:8, 2:7, 3:6} },
+    PENCAPAIAN: { "ANTARABANGSA": {"JOHAN":20, "EMAS":20, "NAIB JOHAN":19, "PERAK":19, "KETIGA":18, "GANGSA":18}, "KEBANGSAAN": {"JOHAN":17, "EMAS":17, "NAIB JOHAN":16, "PERAK":16, "KETIGA":15, "GANGSA":15}, "NEGERI": {"JOHAN":14, "EMAS":14, "NAIB JOHAN":13, "PERAK":13, "KETIGA":12, "GANGSA":12}, "ZON/DAERAH": {"JOHAN":11, "EMAS":11, "NAIB JOHAN":10, "PERAK":10, "KETIGA":9, "GANGSA":9}, "SEKOLAH": {"JOHAN":8, "EMAS":8, "NAIB JOHAN":7, "PERAK":7, "KETIGA":6, "GANGSA":6, "KEEMPAT":5, "KELIMA":4} }
+};
+const INCENTIVE_RATES = {
+    PHYSICAL_INDIVIDUAL: { "ANTARABANGSA":[120,100,80,60], "KEBANGSAAN":[100,80,60,40], "NEGERI":[50,40,30,20], "ZON/DAERAH":[25,20,15,10] },
+    ONLINE_INDIVIDUAL: { "ANTARABANGSA":[35,30,25,20], "KEBANGSAAN":[30,25,20,15], "NEGERI":[25,20,15,10] },
+    GROUP: { "ANTARABANGSA":[80,60,40,30], "KEBANGSAAN":[50,40,30,20], "NEGERI":[25,20,15,10], "ZON/DAERAH":[20,15,10,5] },
+    MEDAL_SYSTEM: { "ANTARABANGSA":25, "KEBANGSAAN":20, "NEGERI":15, "ZON/DAERAH":10 }
+};
+
+let uniqueStudents = [], competitionRecords = [], groupList = [], allRawStudents = [], classConfigs = {}, selectedNames = new Set(), visibleNamesInTable = [], currentEditId = null;
+
+// --- 3. UTILITY FUNCTIONS ---
+// 返回数字（不再是字符串），修复类型不一致问题
+function getYearNum(v) { if(!v) return 0; let s=String(v); const m=s.match(/\d/); if(m) return parseInt(m[0]); if(s.includes("一")) return 1; if(s.includes("二")) return 2; if(s.includes("三")) return 3; if(s.includes("四")) return 4; if(s.includes("五")) return 5; if(s.includes("六")) return 6; return 0; }
+function cleanName(n) { if(!n) return ""; return String(n).replace(/[\u4e00-\u9fa5]/g,'').replace(/\(.*\)/g,'').replace(/\b\d[A-Z]\b/g,'').replace(/\s[LP]$/g,'').toUpperCase().trim().replace(/\s+/g,' '); }
+// XSS安全转义：把所有用户输入内容转成纯文本
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = String(str||''); return d.innerHTML; }
+
+function loadAllData() {
+    db.ref('school_settings/class_configs').on('value', snap => { classConfigs = snap.val() || { "1":"M,K,B,H", "2":"M,K,B,H", "3":"M,K,B,H", "4":"M,K,B,H", "5":"M,K,B,H", "6":"M,K,B,H,U" }; updateAllYearSelectors(); });
+    db.ref('school_data_v11/groups').once('value', gs => {
+        groupList = gs.val() ? Object.values(gs.val()) : [];
+        db.ref('school_data_v11/students').on('value', snap => {
+            allRawStudents = Object.entries(snap.val() || {}).map(([fid, d]) => ({ fid, ...d }));
+            const map = {};
+            allRawStudents.forEach(item => {
+                const name = cleanName(item.name); if (!name) return;
+                if (!map[name] || (map[name].className === "NA" && item.className && item.className !== "NA")) {
+                    map[name] = { name: name, className: (item.className && item.className !== "NA") ? item.className : (map[name]?map[name].className:"NA"), assignments: {}, rawFids: [] };
+                }
+                if (!map[name].rawFids.includes(item.fid)) map[name].rawFids.push(item.fid);
+                if (item.groupId) { const g = groupList.find(x => x.id === item.groupId); if (g) map[name].assignments[g.category] = g.id; }
+            });
+            uniqueStudents = Object.values(map).sort((a,b) => {
+                const isNaA = a.className === "NA", isNaB = b.className === "NA";
+                if (isNaA !== isNaB) return isNaA ? 1 : -1;
+                const yA = getYearNum(a.className), yB = getYearNum(b.className);
+                if (yA !== yB) return yB - yA;
+                return a.className.localeCompare(b.className) || a.name.localeCompare(b.name);
+            });
+            renderMngTable(); renderEntryTable();
+        });
+    });
+    db.ref('competition_records').on('value', snap => {
+        competitionRecords = snap.val() ? Object.entries(snap.val()).map(([k, v]) => ({ ...v, fireId: k })) : [];
+        renderMasterTable(); renderAnalysisTable(true); renderIncentiveTable();
+    });
+}
+
+// --- LOGIC FUNCTIONS ---
+window.unlockAdminTools = () => {
+    const pw = prompt("Password:");
+    if (pw === "admin123") {
+        document.getElementById('promotion-lock').classList.add('hidden');
+        document.getElementById('admin-tools').classList.remove('hidden');
+        renderClassInputs();
+    } else if (pw !== null) {
+        alert("Kata laluan salah!");
+    }
+};
+function renderClassInputs() {
+    const grid = document.getElementById('class-inputs-grid'); grid.innerHTML = "";
+    for(let i=1; i<=6; i++) grid.innerHTML += `<div><label style="font-size:12px; font-weight:700">Tahun ${i}:</label><input type="text" id="cfg-year-${i}" value="${escapeHtml(classConfigs[i]||'')}" placeholder="例：M,K,B,H" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px"></div>`;
+}
+window.saveClassConfigs = async () => { const n = {}; for(let i=1; i<=6; i++) n[i] = document.getElementById(`cfg-year-${i}`).value; await db.ref('school_settings/class_configs').set(n); alert("OK — Konfigurasi disimpan."); };
+
+window.processYearEndRollover = async () => {
+    if (!confirm("⚠️ PERHATIAN!\n\nTahun 6 akan dipadam dari sistem.\nTahun 1-5 akan naik satu tahun.\nSemua rekod pertandingan akan dibersihkan.\n\nTeruskan?")) return;
+    if (prompt("Taip CONFIRM untuk mengesahkan:") !== "CONFIRM") return;
+    if (!confirm("⛔ PASTI? Tindakan ini tidak boleh undur!")) return;
+
+    const ups = {}; let naik = 0, padam = 0;
+    allRawStudents.forEach(s => {
+        const raw = String(s.className || '');
+        const match = raw.match(/^([1-5])([A-Z])$/);
+        if (match) {
+            const [_, yStr, suffix] = match;
+            ups[`school_data_v11/students/${s.fid}/className`] = (parseInt(yStr) + 1) + suffix;
+            naik++;
+        } else if (/^6[A-Z]$/.test(raw)) {
+            ups[`school_data_v11/students/${s.fid}`] = null;
+            padam++;
+        }
+        // NA / 无班级 / 多字母后缀(如PRA) → 保持不变
+    });
+    ups['competition_records'] = null;
+    ups['pajsk_final_scores'] = null;
+
+    await db.ref().update(ups);
+    alert(`✅ Rollover Siap!\n\n📋 Ringkasan:\n• Pelajar naik kelas: ${naik}\n• Pelajar Tahun 6 dipadam: ${padam}\n• Rekod competitions dibersihkan\n\nSistem akan刷新...`);
+    location.reload();
+};
+
+window.importNewStudentList = (el) => {
+    const f = el.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = async (e) => {
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+        const ups = {}; let c = 0, dup = 0;
+        const existingKeys = new Set(allRawStudents.map(s => `${cleanName(s.name)}|${s.className||'NA'}`));
+        wb.SheetNames.forEach(sn => {
+            const j = XLSX.utils.sheet_to_json(wb.Sheets[sn]);
+            j.forEach(row => {
+                const n = cleanName(row.NAMA || row.Nama), cls = (row.KELAS || row.Kelas || "NA").toUpperCase();
+                if(!n) return;
+                const key = `${n}|${cls}`;
+                if (existingKeys.has(key)) { dup++; return; }
+                existingKeys.add(key);
+                ups[`school_data_v11/students/STU_${Date.now()}_${Math.random().toString(36).substr(2,6)}`] = { name: n, className: cls, gender: row.JANTINA || row.Jantina || "-", groupId: null };
+                c++;
+            });
+        });
+        if (Object.keys(ups).length === 0) return alert("Tiada pelajar baru untuk diimport." + (dup > 0 ? `\n(${dup} nama sudah ada.)` : ''));
+        await db.ref().update(ups);
+        alert(`✅ Siap! ${c} pelajar baru diimport.` + (dup > 0 ? `\n(${dup} duplicate dilewat.)` : ''));
+        el.value = '';
+    };
+    r.readAsArrayBuffer(f);
+};
+
+// --- TABLE RENDERING ---
+function renderMngTable() {
+    const body = document.getElementById('mng-body'), yF = parseInt(document.getElementById('mng-year-filter').value) || 0, cF = document.getElementById('mng-class-filter').value;
+    body.innerHTML = uniqueStudents.filter(s => (!yF || getYearNum(s.className) === yF) && (!cF || s.className === cF)).map(s => {
+        const sY = getYearNum(s.className);
+        return `<tr><td>${escapeHtml(s.name)}</td><td><span class="badge">${escapeHtml(s.className)}</span></td><td>${makeAssignSelect(s,'学会',sY)}</td><td>${makeAssignSelect(s,'制服团体',sY)}</td><td>${makeAssignSelect(s,'球类与运动',sY)}</td><td><button class="btn btn-green" onclick="updateStudentGroups('${s.name.replace(/'/g,"\\'")}', this)">SAVE</button></td></tr>`;
+    }).join('');
+}
+function makeAssignSelect(s, cat, sY) {
+    const curId = s.assignments[cat];
+    let h = `<select class="assign-sel" data-cat="${escapeHtml(cat)}"><option value="">--</option>`;
+    let opts = groupList.filter(g => g.category === cat).sort((a,b) => {
+        const am = (getYearNum(a.year) === sY && sY !== 0), bm = (getYearNum(b.year) === sY && sY !== 0);
+        if(am && !bm) return -1; if(!am && bm) return 1; return a.name.localeCompare(b.name);
+    });
+    opts.forEach(g => h += `<option value="${escapeHtml(g.id)}" ${g.id === curId ? 'selected' : ''}>${(getYearNum(g.year)===sY&&sY!==0)?"✅ ":"❌ "}${escapeHtml(g.name)} (${escapeHtml(g.year)||'All'})</option>`);
+    return h + `</select>`;
+}
+window.updateStudentGroups = async (name, btn) => {
+    const st = uniqueStudents.find(x => x.name === name), ups = {};
+    btn.closest('tr').querySelectorAll('.assign-sel').forEach((sel, idx) => { if (st.rawFids[idx]) ups[`school_data_v11/students/${st.rawFids[idx]}/groupId`] = sel.value || null; });
+    await db.ref().update(ups); btn.innerText = "✓"; setTimeout(()=>{ btn.innerText="SAVE"; }, 1500);
+};
+
+function renderEntryTable() {
+    const body = document.getElementById('entry-body'), yF = parseInt(document.getElementById('entry-year-filter').value) || 0, cF = document.getElementById('entry-class-filter').value, s = document.getElementById('search-input').value.toUpperCase();
+    let h = ""; visibleNamesInTable = [];
+    uniqueStudents.forEach(st => {
+        if ((!yF || getYearNum(st.className) === yF) && (!cF || st.className === cF) && (escapeHtml(st.name).toUpperCase().includes(s))) {
+            visibleNamesInTable.push(st.name); h += `<tr><td><input type="checkbox" data-name="${escapeHtml(st.name).replace(/"/g,'&quot;')}" onchange="syncS(this)" ${selectedNames.has(st.name)?'checked':''}></td><td>${escapeHtml(st.name)}</td><td>${escapeHtml(st.className)}</td></tr>`;
+        }
+    });
+    body.innerHTML = h; document.getElementById('count-display').innerText = selectedNames.size;
+}
+window.syncS = (el) => { const n = el.getAttribute('data-name'); if(el.checked) selectedNames.add(n); else selectedNames.delete(n); document.getElementById('count-display').innerText = selectedNames.size; };
+window.toggleAllVisible = (el) => { visibleNamesInTable.forEach(n => el.checked?selectedNames.add(n):selectedNames.delete(n)); renderEntryTable(); };
+
+async function saveRecords() {
+    const nI = document.getElementById('comp-name').value;
+    if(selectedNames.size === 0 || !nI) return alert("Pilih murid & Nama!");
+    const ups = {};
+    selectedNames.forEach(n => {
+        const st = uniqueStudents.find(x => x.name === n);
+        const rid = "REC_" + Date.now() + "_" + Math.random().toString(36).substr(2,4);
+        ups[`competition_records/${rid}`] = { category: document.getElementById('comp-type').value, level: document.getElementById('comp-level').value, rank: document.getElementById('comp-rank').value, role: document.getElementById('comp-role').value, competitionName: nI.toUpperCase(), date: document.getElementById('comp-date').value, org: document.getElementById('comp-org').value, isOnline: document.getElementById('mode-online').checked, isGroup: document.getElementById('mode-group').checked, isMedalSystem: document.getElementById('mode-medal').checked, isPAJSK: document.getElementById('mode-pajsk').checked, studentName: n, studentClass: st.className, timestamp: Date.now() };
+    });
+    await db.ref().update(ups); alert("OK — " + selectedNames.size + " rekod disimpan."); selectedNames.clear(); renderEntryTable();
+}
+
+// --- TABLE 3 & 4 ---
+function renderMasterTable() {
+    const b = document.getElementById('master-body'), fC = document.getElementById('master-class-filter').value, yF = parseInt(document.getElementById('master-year-filter').value) || 0, fN = document.getElementById('master-search-input').value.toUpperCase();
+    if(!b) return;
+    b.innerHTML = competitionRecords.filter(r => (!yF || getYearNum(r.studentClass) === yF) && (!fC || r.studentClass === fC) && escapeHtml(r.studentName).toUpperCase().includes(fN)).sort((a,b)=>b.timestamp-a.timestamp).slice(0, 200).map((r, i) => `<tr><td>${i+1}</td><td>${escapeHtml(r.studentName)}</td><td>${escapeHtml(r.studentClass)}</td><td>${escapeHtml(r.competitionName)}</td><td>${r.isOnline?'On':'Off'}</td><td>${r.isGroup?'Pasu':'Ind'}</td><td>${r.isMedalSystem?'Ping':'Rank'}</td><td>${r.isPAJSK!==false?'Y':'N'}</td><td>${escapeHtml(r.level)}</td><td>${escapeHtml(r.rank)}</td><td><button class="btn btn-blue" style="padding:4px" onclick="openEditModal('${r.fireId}')">📝</button><button class="btn btn-red" style="padding:4px" onclick="deleteR('${r.fireId}')">🗑️</button></td></tr>`).join('');
+}
+window.openEditModal = (id) => {
+    const r = competitionRecords.find(x => x.fireId === id); if (!r) return;
+    currentEditId = id;
+    document.getElementById('edit-comp-name').value = r.competitionName;
+    document.getElementById('edit-comp-type').value = r.category;
+    document.getElementById('edit-comp-level').value = r.level;
+    document.getElementById('edit-comp-rank').value = r.rank;
+    document.getElementById('edit-comp-role').value = r.role || "1";
+    document.getElementById('edit-comp-date').value = r.date || "";
+    document.getElementById('edit-comp-org').value = r.org || "";
+    document.getElementById('edit-mode-online').checked = r.isOnline || false;
+    document.getElementById('edit-mode-group').checked = r.isGroup || false;
+    document.getElementById('edit-mode-medal').checked = r.isMedalSystem || false;
+    document.getElementById('edit-mode-pajsk').checked = r.isPAJSK !== false;
+    document.getElementById('edit-modal').classList.remove('hidden');
+};
+window.saveEditRecord = async () => {
+    const ups = { competitionName: document.getElementById('edit-comp-name').value.toUpperCase(), category: document.getElementById('edit-comp-type').value, level: document.getElementById('edit-comp-level').value, rank: document.getElementById('edit-comp-rank').value, role: document.getElementById('edit-comp-role').value, date: document.getElementById('edit-comp-date').value, org: document.getElementById('edit-comp-org').value, isOnline: document.getElementById('edit-mode-online').checked, isGroup: document.getElementById('edit-mode-group').checked, isMedalSystem: document.getElementById('edit-mode-medal').checked, isPAJSK: document.getElementById('edit-mode-pajsk').checked };
+    await db.ref('competition_records/' + currentEditId).update(ups); alert("Updated!"); closeModal('edit-modal');
+};
+
+async function renderAnalysisTable(shouldSync = false) {
+    const b = document.getElementById('analysis-body'), yF = parseInt(document.getElementById('analysis-year-filter').value) || 0, cF = document.getElementById('analysis-class-filter').value, ups = {};
+    let html = ""; const mCats = ["KELAB & PERSATUAN", "BADAN BERUNIFORM", "SUKAN & PERMAINAN"];
+    uniqueStudents.forEach(s => {
+        const yr = getYearNum(s.className);
+        mCats.forEach(cat => {
+            const kw = cat.split(" ")[0], allRecs = competitionRecords.filter(r => r.studentName === s.name && (r.category || "").includes(kw));
+            if (allRecs.length === 0) return;
+            const vRecs = allRecs.filter(r => r.isPAJSK !== false);
+            let bP = {score: 0, txt: '-'}, bA = {score: 0, txt: '-'};
+            if (yr >= 4 && vRecs.length > 0) { vRecs.forEach(r => { let s1 = (POINT_SYSTEM.PENGLIBATAN[r.level] || {})[r.role] || 0; if(s1 > bP.score) bP = {score: s1, txt: `${r.level} (P${r.role})`}; let s2 = (POINT_SYSTEM.PENCAPAIAN[r.level] || {})[r.rank] || 0; if(s2 > bA.score) bA = {score: s2, txt: `${r.level} (${r.rank})`}; }); }
+            if ((bP.score > 0 || bA.score > 0) && ((!yF || getYearNum(s.className) === yF) && (!cF || s.className === cF))) {
+                html += `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.className)}</td><td><span class="badge">${escapeHtml(cat)}</span></td><td>${escapeHtml(bP.txt)}</td><td><b>${bP.score}</b></td><td>${escapeHtml(bA.txt)}</td><td><b>${bA.score}</b></td></tr>`;
+            }
+            const sk = `${s.name}_${s.className}_${cat}`.replace(/[.#$/[\]]/g, "_");
+            ups[`pajsk_final_scores/${sk}`] = { nama: s.name, kelas: s.className, kategori: cat, pgl: bP.txt, m_pgl: bP.score, pcp: bA.txt, m_pcp: bA.score, t: Date.now() };
+        });
+    });
+    if (b) b.innerHTML = html; if (shouldSync && Object.keys(ups).length > 0) db.ref().update(ups);
+}
+
+// --- TAB 5 ---
+function getIncentiveAmount(r) {
+    const rk = String(r.rank).toUpperCase(), lvl = String(r.level).toUpperCase(); if (rk.includes("PENYERTAAN")) return 0;
+    let idx = 3; if (rk.includes("JOHAN") || rk.includes("EMAS") || rk.includes("PERTAMA")) idx = 0; else if (rk.includes("NAIB") || rk.includes("PERAK") || rk.includes("KEDUA")) idx = 1; else if (rk.includes("KETIGA") || rk.includes("GANGSA")) idx = 2;
+    if (r.isMedalSystem) return (idx === 0) ? INCENTIVE_RATES.MEDAL_SYSTEM[lvl] || 0 : 0;
+    if (r.isGroup) return (INCENTIVE_RATES.GROUP[lvl] || [])[idx] || 0;
+    if (r.isOnline) return (INCENTIVE_RATES.ONLINE_INDIVIDUAL[lvl] || [])[idx] || 0;
+    return (INCENTIVE_RATES.PHYSICAL_INDIVIDUAL[lvl] || [])[idx] || 0;
+}
+function renderIncentiveTable() {
+    const body = document.getElementById('incentive-body'), yRaw = document.getElementById('incentive-year-filter').value, yF = parseInt(yRaw) || 0, isPRA = yRaw === 'PRA', cF = document.getElementById('incentive-class-filter').value;
+    if (!body) return;
+    let gT = 0; const sSum = {};
+    competitionRecords.forEach(r => { const amt = getIncentiveAmount(r); if (amt > 0) { if (!sSum[r.studentName]) sSum[r.studentName] = { name: r.studentName, cls: r.studentClass, count: 0, total: 0 }; sSum[r.studentName].count++; sSum[r.studentName].total += amt; } });
+    body.innerHTML = Object.values(sSum).filter(s => (isPRA ? (s.cls.toUpperCase().includes('PRA')) : (!yF || getYearNum(s.cls) === yF)) && (!cF || s.cls.toUpperCase() === cF.toUpperCase())).sort((a,b)=>b.total - a.total).map(s => { gT += s.total; const sn = s.name.replace(/"/g,'&quot;'); return `<tr><td style="color:var(--secondary); cursor:pointer; font-weight:bold" onclick="window.showStudentBreakdown(&quot;${sn}&quot;)">🔗 ${escapeHtml(s.name)}</td><td>${escapeHtml(s.cls)}</td><td>${s.count}</td><td><b>RM ${s.total.toFixed(2)}</b></td><td><button class="btn btn-blue" onclick="window.showStudentBreakdown(&quot;${sn}&quot;)">Detail</button></td></tr>`; }).join('');
+    document.getElementById('grand-total').innerText = gT.toFixed(2);
+}
+
+// --- EXPORTS ---
+window.exportMasterExcel = () => {
+    const d = [["BIL", "NAMA MURID", "KELAS", "PERTANDINGAN", "FORMAT", "UNIT", "SISTEM", "PAJSK", "JENIS", "PENGLIBATAN", "PERINGKAT", "ANJURAN", "PENCAPAIAN", "TARIKH"]];
+    competitionRecords.forEach((r, i) => d.push([i+1, r.studentName, r.studentClass, r.competitionName, r.isOnline?"ONLINE":"FIZIKAL", r.isGroup?"PASUKAN":"INDIVIDU", r.isMedalSystem?"PINGAT":"RANKING", r.isPAJSK!==false?"YA":"TIDAK", r.category, r.role, r.level, r.org||"-", r.rank, r.date||"-"]));
+    XLSX.writeFile({SheetNames:["Data"], Sheets:{Data:XLSX.utils.aoa_to_sheet(d)}}, "Records.xlsx");
+};
+window.exportIncentiveExcel = () => {
+    const d = [["NAMA MURID / PERTANDINGAN", "KELAS", "FORMAT/UNIT/SISTEM", "LEVEL", "PENCAPAIAN", "INSENTIF (RM)"]];
+    const sums = {}; competitionRecords.forEach(r => { const amt = getIncentiveAmount(r); if (amt > 0) { if (!sums[r.studentName]) sums[r.studentName] = { name: r.studentName, cls: r.studentClass, total: 0, items: [] }; sums[r.studentName].total += amt; sums[r.studentName].items.push(r); } });
+    Object.values(sums).sort((a,b) => a.cls.localeCompare(b.cls) || a.name.localeCompare(b.name)).forEach(s => { d.push([`>>> ${s.name} <<<`, s.cls, "TOTAL:", "", "", s.total.toFixed(2)]); s.items.forEach(it => { d.push([`   - ${it.competitionName}`, "", `${it.isOnline?'On':'Off'}/${it.isGroup?'Pasu':'Ind'}`, it.level, it.rank, getIncentiveAmount(it).toFixed(2)]); }); d.push(["","","","","",""]); });
+    XLSX.writeFile({SheetNames:["Incentive"], Sheets:{Incentive:XLSX.utils.aoa_to_sheet(d)}}, "Incentive_Report.xlsx");
+};
+window.exportAnalysisExcel = () => {
+    const d = [["NAMA", "KELAS", "KATEGORI", "MAX PGL", "M", "MAX PCP", "M"]];
+    document.querySelectorAll("#analysis-body tr").forEach(tr => { const tds = tr.querySelectorAll("td"); if(tds.length >= 7) d.push([tds[0].innerText, tds[1].innerText, tds[2].innerText, tds[3].innerText, tds[4].innerText, tds[5].innerText, tds[6].innerText]); });
+    XLSX.writeFile({SheetNames:["Analysis"], Sheets:{Analysis:XLSX.utils.aoa_to_sheet(d)}}, "Analysis.xlsx");
+};
+window.exportMngExcel = () => {
+    const yF = parseInt(document.getElementById('mng-year-filter').value) || 0, cF = document.getElementById('mng-class-filter').value, d = [["NAMA", "KELAS", "KELAB", "UNIFORM", "SUKAN"]];
+    uniqueStudents.filter(s => (!yF || getYearNum(s.className) === yF) && (!cF || s.className === cF)).forEach(s => { const g = (c) => { const x = groupList.find(i => i.id === s.assignments[c]); return x ? x.name : "-"; }; d.push([s.name, s.className, g('学会'), g('制服团体'), g('球类与运动')]); });
+    XLSX.writeFile({SheetNames:["List"], Sheets:{List:XLSX.utils.aoa_to_sheet(d)}}, "Class.xlsx");
+};
+
+// --- HELPERS ---
+function updateAllYearSelectors() { ['mng-year-filter', 'entry-year-filter', 'master-year-filter', 'analysis-year-filter'].forEach(id => { const el = document.getElementById(id); if(el) { el.innerHTML = '<option value="">-- Tahun --</option>'; for(let i=6; i>=1; i--) el.innerHTML += `<option value="${i}">Tahun ${i}</option>`; } }); }
+// 界面5单独处理：额外加入 PRA 选项
+    const iYF = document.getElementById('incentive-year-filter');
+    if(iYF) { iYF.innerHTML = '<option value="">-- Tahun --</option>'; for(let i=6; i>=1; i--) iYF.innerHTML += `<option value="${i}">Tahun ${i}</option>`; iYF.innerHTML += '<option value="PRA">PRA</option>'; }
+window.updateClassSelector = (yId, cId) => { const y = document.getElementById(yId).value, cEl = document.getElementById(cId); cEl.innerHTML = '<option value="">-- Kelas --</option>'; if (y && classConfigs[y]) classConfigs[y].split(',').forEach(n => cEl.innerHTML += `<option value="${y}${n.trim()}">${y}${n.trim()}</option>`); };
+window.updateIncentiveClassSelector = () => { const y = document.getElementById('incentive-year-filter').value, cEl = document.getElementById('incentive-class-filter'); cEl.innerHTML = '<option value="">-- Kelas --</option>'; if (y === 'PRA') { cEl.innerHTML += '<option value="PRA CERIA">PRA CERIA</option><option value="PRA RIANG">PRA RIANG</option>'; } else if (y && classConfigs[y]) { classConfigs[y].split(',').forEach(n => cEl.innerHTML += `<option value="${y}${n.trim()}">${y}${n.trim()}</option>`); } };
+
+window.importMasterExcel = (el) => {
+    const f = el.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+        const j = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {raw:false});
+        const ups = {}; let a = 0, sk = 0;
+        const ks = new Set(competitionRecords.map(x => `${cleanName(x.studentName)}|${x.studentClass}|${String(x.competitionName).toUpperCase()}`));
+        const localImportedKeys = new Set(); // 防止同一批次内重复
+        j.forEach(row => {
+            const n = cleanName(row["NAMA MURID"] || row.NAMA), st = uniqueStudents.find(x => x.name === n), cls = st ? st.className : (row.KELAS || "NA"), cpN = String(row.PERTANDINGAN || "").toUpperCase();
+            const recKey = `${n}|${cls}|${cpN}`;
+            if (ks.has(recKey) || localImportedKeys.has(recKey)) { sk++; return; }
+            localImportedKeys.add(recKey); ks.add(recKey);
+            let rawF = String(row.FORMAT || ""), rawU = String(row.UNIT || ""), rawS = String(row.SISTEM || ""), rawP = String(row.PAJSK || ""), rC = String(row.JENIS || "").toUpperCase(), fC = rC.includes("UNIFORM")?"BADAN BERUNIFORM":rC.includes("SUKAN")?"SUKAN & PERMAINAN":"KELAB & PERSATUAN";
+            const isPAJSKVal = !rawP.toUpperCase().includes("TIDAK");
+            ups[`competition_records/IMP_${Date.now()}_${Math.random().toString(36).substr(2,4)}`] = { studentName: n, studentClass: cls, competitionName: cpN, category: fC, level: String(row.PERINGKAT||"SEKOLAH").toUpperCase(), rank: String(row.PENCAPAIAN||"PENYERTAAN").toUpperCase(), role: String(row.PENGLIBATAN||"1"), org: row.ANJURAN || "-", date: row["TARIKH PENYERTAAN"]||row.TARIKH||"-", timestamp: Date.now(), isOnline: rawF.toUpperCase().includes("ONLINE"), isGroup: rawU.toUpperCase().includes("PASUKAN"), isMedalSystem: rawS.toUpperCase().includes("PINGAT"), isPAJSK: isPAJSKVal }; a++;
+        });
+        if (Object.keys(ups).length === 0) return alert("Tiada rekod baru untuk diimport." + (sk > 0 ? `\n(${sk} pendua.)` : ''));
+        await db.ref().update(ups);
+        alert(`✅ Import Siap! ${a} rekod baru.` + (sk > 0 ? `\n(${sk} pendua dilewat.)` : ''));
+        el.value = '';
+        setTimeout(() => { renderMasterTable(); renderIncentiveTable(); renderAnalysisTable(); }, 500);
+    };
+    reader.readAsArrayBuffer(f);
+};
+
+window.deleteR = (id) => {
+    if (!confirm("🗑️ Hapus rekod ini? Tindakan ini tidak boleh undur.")) return;
+    db.ref('competition_records/' + id).remove().then(() => {
+        const btn = document.querySelector(`button[onclick=\"deleteR('${id}')\"]`);
+        if (btn) { btn.innerHTML = '✅'; btn.className = 'btn btn-green'; btn.disabled = true; btn.onclick = null; }
+    }).catch(() => alert("Ralat semasa memadam."));
+};
+
+let sT; document.getElementById('search-input').addEventListener('input', () => { clearTimeout(sT); sT = setTimeout(renderEntryTable, 250); });
+loadAllData();
+</script>
+</body>
+</html>
