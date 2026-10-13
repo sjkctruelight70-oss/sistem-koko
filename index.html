@@ -549,10 +549,14 @@
             document.getElementById('status-badge').style.background = "#16a34a";
             
             app.updateDropdowns('att'); app.updateDropdowns('rpt'); app.updateDropdowns('arc'); app.updateDropdowns('mng'); app.updateDropdowns('carta'); app.updateDropdowns('data');
-            app.renderBatchList();
+            if(document.getElementById('tab-archive').classList.contains('active')) app.renderBatchList();
         });
         onValue(ref(db, 'school_group_meta_v11'), snap => { metaData = snap.val() || {}; });
-        onValue(ref(db, 'school_reports_v11'), snap => { reportsData = snap.val() ? Object.values(snap.val()) : []; if(document.getElementById('tab-archive').classList.contains('active')) app.fetchReports(); });
+        onValue(ref(db, 'school_reports_v11'), snap => {
+            const value = snap.val();
+            reportsData = value ? Object.values(value).filter(Boolean) : [];
+            if(document.getElementById('tab-archive').classList.contains('active')) app.fetchReports();
+        });
         document.getElementById('att-date').valueAsDate = new Date();
     }
 
@@ -573,16 +577,27 @@
             const c = document.getElementById(prefix+'-cat').value;
             const sel = document.getElementById(prefix+'-group');
             sel.innerHTML = '<option value="">-- Pilih --</option>';
-            let list = dbData.groups || [];
+            // Use a copy so sorting never changes the live Firebase-backed in-memory order.
+            let list = [...(dbData.groups || [])];
             if(y) list = list.filter(g => g.year === y);
             if(c) list = list.filter(g => g.category === c);
-            list.sort((a,b) => a.name.localeCompare(b.name));
-            list.forEach(g => { sel.innerHTML += `<option value="${g.id}">${g.name}</option>`; });
+            list.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+            const optionsHtml = ['<option value="">-- Pilih --</option>',
+                ...list.map(g => `<option value="${g.id}">${g.name || ''}</option>`)].join('');
+            sel.innerHTML = optionsHtml;
 
-            if(prefix==='arc') { app.fetchReports(); app.renderStatsTable(); }
-            if(prefix==='mng') app.renderManageList();
-            if(prefix==='data') app.renderDataEditor();
-            if(prefix==='carta') { document.getElementById('carta-preview').classList.add('hidden'); app.renderSijilSelection(); }
+            // Arkib is rendered only while visible; entering the tab refreshes it.
+            if(prefix==='arc' && document.getElementById('tab-archive').classList.contains('active')) {
+                app.fetchReports();
+                app.renderStatsTable();
+            }
+            // Do not render heavy content for tabs that are currently hidden.
+            if(prefix==='mng' && document.getElementById('tab-manage').classList.contains('active')) app.renderManageList();
+            if(prefix==='data' && document.getElementById('tab-data').classList.contains('active')) app.renderDataEditor();
+            if(prefix==='carta' && document.getElementById('tab-carta').classList.contains('active')) {
+                document.getElementById('carta-preview').classList.add('hidden');
+                app.renderSijilSelection();
+            }
         },
         
         // --- 1. DATA & JAWATAN: RENDER (FIXED) ---
@@ -1241,16 +1256,28 @@ generateSijilPDF: async () => {
 
         // --- ARCHIVE / EXPORT ---
         fetchReports: () => {
-            const list = document.getElementById('archive-list'); list.innerHTML = '';
+            const list = document.getElementById('archive-list');
             const gid = document.getElementById('arc-group').value;
-            let display = reportsData;
-            if(gid) { const gObj = dbData.groups.find(g => g.id === gid); if(gObj) display = display.filter(r => (r.groupId === gid) || (r.groupName.includes(gObj.name))); }
-            display.sort((a,b) => b.timestamp.localeCompare(a.timestamp));
-            if(display.length===0) { list.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:10px;">Tiada Laporan.</td></tr>'; return; }
-            display.forEach(r => {
-                const d = new Date(r.timestamp).toLocaleDateString();
-                list.innerHTML += `<tr><td style="text-align:center"><input type="checkbox" value="${r.id}" class="arc-chk"></td><td><b>${r.groupName}</b><br><span style="color:#666;font-size:0.8rem;">Dicipta: ${d}</span></td><td style="text-align:center"><button class="btn-outline" onclick="app.viewReport('${r.id}')">Lihat</button></td></tr>`;
+            const group = gid ? dbData.groups.find(g => g.id === gid) : null;
+
+            // Filter a new array rather than sorting/mutating reportsData itself.
+            let display = reportsData.filter(Boolean);
+            if(gid && group) {
+                display = display.filter(r => r.groupId === gid || String(r.groupName || '').includes(group.name || ''));
+            }
+            display.sort((a,b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+
+            if(display.length === 0) {
+                list.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:10px;">Tiada Laporan.</td></tr>';
+                return;
+            }
+
+            // Build once and update the DOM once instead of reparsing it for every report.
+            const rows = display.map(r => {
+                const d = r.timestamp ? new Date(r.timestamp).toLocaleDateString() : '-';
+                return `<tr><td style="text-align:center"><input type="checkbox" value="${r.id}" class="arc-chk"></td><td><b>${r.groupName || ''}</b><br><span style="color:#666;font-size:0.8rem;">Dicipta: ${d}</span></td><td style="text-align:center"><button class="btn-outline" onclick="app.viewReport('${r.id}')">Lihat</button></td></tr>`;
             });
+            list.innerHTML = rows.join('');
         },
         viewReport: (rid) => {
             const r = reportsData.find(x => x.id == rid); if(!r) return;
@@ -1274,18 +1301,24 @@ generateSijilPDF: async () => {
         renderStatsTable: () => {
             const gid = document.getElementById('arc-group').value;
             const div = document.getElementById('stats-container');
-            if(!gid) { div.innerHTML='<div style="padding:10px;text-align:center;color:#999;">Pilih kumpulan di atas.</div>'; return; }
+            if(!gid) {
+                div.innerHTML = '<div style="padding:10px;text-align:center;color:#999;">Pilih kumpulan di atas.</div>';
+                return;
+            }
             const students = dbData.students.filter(s => s.groupId === gid);
-            let html = '<table class="data-table"><thead><tr><th>Nama</th><th>Hadir</th><th>Markah (40%)</th><th>Jawatan</th><th>Markah (10%)</th></tr></thead><tbody>';
-            students.forEach(s => {
-                let p=0; if(s.attendance) Object.values(s.attendance).forEach(v => { if(v) p++; });
-                let attScore = (p / 12) * 40; if (attScore > 40) attScore = 40;
+            const rows = students.map(s => {
+                let p = 0;
+                if(s.attendance) {
+                    for(const value of Object.values(s.attendance)) if(value) p++;
+                }
+                let attScore = (p / 12) * 40;
+                if(attScore > 40) attScore = 40;
                 const jwt = s.jawatan ? s.jawatan.toUpperCase() : 'AHLI AKTIF';
                 let jwtScore = JAWATAN_SCORE[jwt];
-                if(!jwtScore) { if(jwt.includes('AJK')) jwtScore = 5; else jwtScore = 4; }
-                html += `<tr><td>${s.name}</td><td style="text-align:center">${p}</td><td style="text-align:center;">${attScore.toFixed(1)}</td><td style="font-size:0.8rem; color:#666;">${s.jawatan || '-'}</td><td style="text-align:center; font-weight:bold;">${jwtScore}</td></tr>`;
+                if(!jwtScore) jwtScore = jwt.includes('AJK') ? 5 : 4;
+                return `<tr><td>${s.name || ''}</td><td style="text-align:center">${p}</td><td style="text-align:center;">${attScore.toFixed(1)}</td><td style="font-size:0.8rem; color:#666;">${s.jawatan || '-'}</td><td style="text-align:center; font-weight:bold;">${jwtScore}</td></tr>`;
             });
-            html += '</tbody></table>'; div.innerHTML = html;
+            div.innerHTML = '<table class="data-table"><thead><tr><th>Nama</th><th>Hadir</th><th>Markah (40%)</th><th>Jawatan</th><th>Markah (10%)</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
         },
         exportExcel: () => {
             const gid = document.getElementById('arc-group').value; if(!gid) return alert("Pilih Kumpulan.");
@@ -1306,10 +1339,10 @@ generateSijilPDF: async () => {
             const c = document.getElementById('batch-filter-cat').value;
             const div = document.getElementById('batch-group-list'); div.innerHTML = '';
             if(!dbData.groups) return;
-            let list = dbData.groups;
+            let list = [...dbData.groups];
             if(y) list = list.filter(g => g.year === y);
             if(c) list = list.filter(g => g.category === c);
-            list.sort((a,b) => a.name.localeCompare(b.name));
+            list.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
             list.forEach(g => {
                 const row = document.createElement('div'); row.style.padding = "5px"; row.style.borderBottom = "1px solid #eee";
                 row.innerHTML = `<label style="display:flex;align-items:center;cursor:pointer;font-weight:normal;"><input type="checkbox" value="${g.id}" class="batch-chk" style="width:auto;margin-right:8px;"> [${g.year}] ${g.name}</label>`;
