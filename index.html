@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sistem Pengurusan Koko (V31 Sijil Fixed)</title>
     <!-- Libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" async></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <!-- [FIX 1] Added missing fonts: Cinzel and Noto Serif -->
@@ -533,6 +533,7 @@
     let metaData = {};
     let reportsData = [];
     let tempAttendance = {};
+    let isSavingAttendance = false;
     const SIVIK_MAP = { 0: 'Kasih Sayang', 1: 'Hormat-menghormati', 2: 'Bertanggungjawab', 3: 'Kegembiraan', 4: 'Kasih Sayang', 5: 'Hormat-menghormati', 6: 'Bertanggungjawab', 7: 'Kegembiraan', 8: 'Kasih Sayang', 9: 'Hormat-menghormati', 10: 'Bertanggungjawab', 11: 'Kegembiraan' };
     const JAWATAN_SCORE = { 'PENGERUSI': 10, 'NAIB PENGERUSI': 8, 'SETIAUSAHA': 7, 'BENDAHARI': 7, 'NAIB SETIAUSAHA': 6, 'NAIB BENDAHARI': 6, 'AJK': 5, 'AHLI AKTIF': 4, 'AHLI BIASA': 1 };
 
@@ -573,18 +574,26 @@
         },
 
         updateDropdowns: (prefix) => {
-            const y = document.getElementById(prefix+'-year').value;
-            const c = document.getElementById(prefix+'-cat').value;
+            const yearSel = document.getElementById(prefix+'-year');
+            const catSel = document.getElementById(prefix+'-cat');
             const sel = document.getElementById(prefix+'-group');
-            sel.innerHTML = '<option value="">-- Pilih --</option>';
+            if(!yearSel || !catSel || !sel) return;
+            const y = yearSel.value;
+            const c = catSel.value;
+            // Keep the user's current group selection when Firebase sends a fresh snapshot.
+            // Rebuilding a <select> without restoring its value made the selected group vanish.
+            const previousValue = sel.value;
             // Use a copy so sorting never changes the live Firebase-backed in-memory order.
-            let list = [...(dbData.groups || [])];
+            let list = [...(dbData.groups || [])].filter(Boolean);
             if(y) list = list.filter(g => g.year === y);
             if(c) list = list.filter(g => g.category === c);
             list.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+            const escapeOption = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const optionsHtml = ['<option value="">-- Pilih --</option>',
-                ...list.map(g => `<option value="${g.id}">${g.name || ''}</option>`)].join('');
-            sel.innerHTML = optionsHtml;
+                ...list.map(g => `<option value="${escapeOption(g.id)}">${escapeOption(g.name || '')}</option>`)].join('');
+            // Avoid needless DOM work on every attendance snapshot, but restore selection if options changed.
+            if(sel.innerHTML !== optionsHtml) sel.innerHTML = optionsHtml;
+            sel.value = list.some(g => String(g.id) === previousValue) ? previousValue : '';
 
             // Arkib is rendered only while visible; entering the tab refreshes it.
             if(prefix==='arc' && document.getElementById('tab-archive').classList.contains('active')) {
@@ -715,9 +724,9 @@
             const date = document.getElementById('att-date').value;
             const container = document.getElementById('att-list-container');
             const actions = document.getElementById('att-actions');
-            if(!gid || !date) { container.innerHTML = "Sila pilih kumpulan & tarikh."; actions.classList.add('hidden'); return; }
-            const students = dbData.students.filter(s => s.groupId === gid);
-            if(students.length === 0) { container.innerHTML = "Tiada murid."; actions.classList.add('hidden'); return; }
+            if(!gid || !date) { tempAttendance = {}; container.innerHTML = "Sila pilih kumpulan & tarikh."; actions.classList.add('hidden'); return; }
+            const students = (dbData.students || []).filter(s => s && s.groupId === gid);
+            if(students.length === 0) { tempAttendance = {}; container.innerHTML = "Tiada murid."; actions.classList.add('hidden'); return; }
             container.innerHTML = '';
             tempAttendance = {};
             students.forEach(s => {
@@ -732,21 +741,42 @@
             actions.classList.remove('hidden');
         },
         toggleAtt: (sid) => {
-            tempAttendance[sid] = !tempAttendance[sid];
+            if(!Object.prototype.hasOwnProperty.call(tempAttendance, sid)) return;
             const row = document.getElementById(`row-${sid}`);
+            if(!row) return;
+            tempAttendance[sid] = !tempAttendance[sid];
             const pill = row.querySelector('.status-pill');
+            if(!pill) return;
             if(tempAttendance[sid]) { row.classList.remove('absent'); pill.className="status-pill pill-green"; pill.innerText="✔ HADIR"; } 
             else { row.classList.add('absent'); pill.className="status-pill pill-red"; pill.innerText="✖ TIDAK"; }
         },
         saveAttendance: async () => {
             const date = document.getElementById('att-date').value;
             const gid = document.getElementById('att-group').value;
-            if(!gid) return;
+            if(isSavingAttendance) return;
+            if(!gid || !date) return alert("Sila pilih kumpulan dan tarikh dahulu.");
+            if(!Object.keys(tempAttendance).length) return alert("Tiada senarai murid untuk disimpan. Sila pilih semula kumpulan.");
             const updates = {};
-            dbData.students.forEach((s, idx) => {
-                if(s.groupId === gid && tempAttendance.hasOwnProperty(s.id)) updates[`school_data_v11/students/${idx}/attendance/${date}`] = tempAttendance[s.id];
+            (dbData.students || []).forEach((s, idx) => {
+                if(s && s.groupId === gid && Object.prototype.hasOwnProperty.call(tempAttendance, s.id)) {
+                    updates[`school_data_v11/students/${idx}/attendance/${date}`] = tempAttendance[s.id];
+                }
             });
-            await update(ref(db), updates); alert("Disimpan!");
+            if(!Object.keys(updates).length) return alert("Tiada rekod kehadiran yang boleh disimpan. Sila muat semula senarai murid.");
+            const button = document.querySelector('#att-actions button');
+            const oldText = button ? button.innerText : '';
+            isSavingAttendance = true;
+            if(button) { button.disabled = true; button.innerText = '⏳ Menyimpan...'; }
+            try {
+                await update(ref(db), updates);
+                alert("Kehadiran berjaya disimpan.");
+            } catch(e) {
+                console.error('Gagal menyimpan kehadiran:', e);
+                alert("Gagal menyimpan kehadiran. Sila periksa sambungan internet dan cuba lagi.");
+            } finally {
+                isSavingAttendance = false;
+                if(button) { button.disabled = false; button.innerText = oldText; }
+            }
         },
 
         // --- REPORT ---
@@ -1201,12 +1231,16 @@ generateSijilPDF: async () => {
         updateEditTargetGroups: () => {
             const y = document.getElementById('edit-filter-year').value;
             const c = document.getElementById('edit-filter-cat').value;
-            const sel = document.getElementById('edit-target-group'); sel.innerHTML = '';
-            let list = dbData.groups || [];
+            const sel = document.getElementById('edit-target-group');
+            const previousValue = sel.value;
+            // Sort a copy, never the Firebase-backed in-memory groups array.
+            let list = [...(dbData.groups || [])].filter(Boolean);
             if(y) list = list.filter(g => g.year === y);
             if(c) list = list.filter(g => g.category === c);
-            list.sort((a,b) => a.name.localeCompare(b.name));
-            list.forEach(g => { sel.innerHTML += `<option value="${g.id}">[${g.year}] ${g.name}</option>`; });
+            list.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+            const esc = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            sel.innerHTML = list.map(g => `<option value="${esc(g.id)}">[${esc(g.year)}] ${esc(g.name)}</option>`).join('');
+            if(list.some(g => String(g.id) === previousValue)) sel.value = previousValue;
         },
         editStudent: (sid) => {
             const s = dbData.students.find(x => x.id === sid);
@@ -1281,7 +1315,8 @@ generateSijilPDF: async () => {
         },
         viewReport: (rid) => {
             const r = reportsData.find(x => x.id == rid); if(!r) return;
-            const data = { groupName: r.groupName, teacher: r.meta.teacher, place: r.meta.place, officer: r.meta.officer, attRows: r.attendanceHtml, activity: r.content.activity, sivik: r.content.sivik, pikebm: r.content.pikebm, other: r.content.other };
+            const meta = r.meta || {}; const content = r.content || {};
+            const data = { groupName: r.groupName || '', teacher: meta.teacher || '', place: meta.place || '', officer: meta.officer || '', attRows: r.attendanceHtml || '', activity: content.activity || '', sivik: content.sivik || '', pikebm: content.pikebm || '', other: content.other || '' };
             document.getElementById('view-content').innerHTML = `<div class="print-page">${app.buildHTML(data, false)}</div>`;
             document.getElementById('view-modal').style.display = 'flex';
         },
@@ -1291,7 +1326,8 @@ generateSijilPDF: async () => {
             for(const c of chks) {
                 const r = reportsData.find(x => x.id == c.value);
                 if(r) {
-                    const data = { groupName: r.groupName, teacher: r.meta.teacher, place: r.meta.place, officer: r.meta.officer, attRows: r.attendanceHtml, activity: r.content.activity, sivik: r.content.sivik, pikebm: r.content.pikebm, other: r.content.other };
+                    const meta = r.meta || {}; const content = r.content || {};
+                    const data = { groupName: r.groupName || '', teacher: meta.teacher || '', place: meta.place || '', officer: meta.officer || '', attRows: r.attendanceHtml || '', activity: content.activity || '', sivik: content.sivik || '', pikebm: content.pikebm || '', other: content.other || '' };
                     const page = document.createElement('div'); page.className = "print-page"; page.innerHTML = app.buildHTML(data, false); container.appendChild(page);
                 }
             }
