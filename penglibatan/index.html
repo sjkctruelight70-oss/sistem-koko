@@ -2,7 +2,7 @@
 <html lang="ms">
 <head>
     <meta charset="UTF-8">
-    <title>Koko System V9.7 - Ultimate Stable</title>
+    <title>Koko System V9.7 - Competition Import Name Match Fix</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -37,10 +37,13 @@
         .modal-content { background: white; padding: 30px; border-radius: 12px; width: 85%; max-height: 85vh; overflow-y: auto; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
         .close-btn { position: absolute; top: 15px; right: 25px; font-size: 28px; cursor: pointer; color: #999; }
     </style>
+<meta name="koko-build" content="competition-import-name-match-fix-20261023">
 </head>
 <body>
 
-<div class="nav-tabs">
+<div class="nav-tabs" style="align-items:center; flex-wrap:wrap">
+    
+    <select id="ui-language" aria-label="Language" style="width:150px;margin:6px 12px 6px 0" onchange="setUiLanguage(this.value)"><option value="zh">华文</option><option value="ms">BAHASA MELAYU</option><option value="en">ENGLISH</option></select>
     <button class="tab-btn active" onclick="showTab('class-mng', this)">👥 1. 班级管理</button>
     <button class="tab-btn" onclick="showTab('record-entry', this)">📝 2. 比赛录入</button>
     <button class="tab-btn" onclick="showTab('master-list', this)">📊 3. 导入导出总表</button>
@@ -74,6 +77,17 @@
     <div id="tab-record-entry" class="tab-content hidden">
         <div class="card">
             <h2>📝 Pendaftaran Keputusan Pertandingan</h2>
+            <!-- Added: safe Excel template download/import. Existing manual entry remains unchanged. -->
+            <div class="card" style="padding:16px; margin:12px 0 20px; border:1px solid #bfdbfe; background:#eff6ff; box-shadow:none">
+                <h3 style="margin:0 0 8px" data-import-static-title>📥 导入校内比赛成绩（Excel）</h3>
+                <p style="margin:0 0 12px; color:#475569" data-import-static-description>填写比赛名称、活动类别及学生成绩。第1至第5名计入PAJSK，第6名起不计分。可复制粘贴资料，上传后检查并确认。</p>
+                <div class="filter-bar" style="flex-wrap:wrap">
+                    <button type="button" class="btn btn-blue" onclick="downloadCompetitionTemplate()">⬇️ 下载成绩模板</button>
+                    <label class="btn btn-green" style="cursor:pointer">⬆️ 上传填写好的模板 <input id="competition-template-file" type="file" accept=".xlsx,.xls" style="display:none" onchange="previewCompetitionTemplate(this)"></label>
+                </div>
+                <div id="competition-import-status" style="margin-top:10px"></div>
+                <div id="competition-import-preview" class="hidden" style="margin-top:14px"></div>
+            </div>
             <div class="switch-row">
                 <div class="form-group"><span>Format: Off/On</span><label class="switch"><input type="checkbox" id="mode-online"><span class="slider"></span></label></div>
                 <div class="form-group"><span>Unit: Indi/Pasu</span><label class="switch"><input type="checkbox" id="mode-group"><span class="slider"></span></label></div>
@@ -108,6 +122,7 @@
                 <select id="master-year-filter" onchange="updateClassSelector('master-year-filter','master-class-filter'); renderMasterTable();"></select>
                 <select id="master-class-filter" onchange="renderMasterTable()"></select>
                 <button class="btn btn-blue" onclick="exportMasterExcel()">📥 Export (15-Col)</button>
+                <button class="btn btn-green" onclick="exportDeputyPrincipalCompetitionReport()">📄 副校长比赛报告 / Laporan PK</button>
                 <label class="btn btn-green">📤 Import <input type="file" style="display:none" onchange="importMasterExcel(this)"></label>
             </div>
             <div style="max-height:600px; overflow-y:auto;"><table class="data-table"><thead><tr><th>BIL</th><th>Nama</th><th>Kelas</th><th>Pertandingan</th><th>Format</th><th>Unit</th><th>Sis</th><th>PAJSK</th><th>Level</th><th>Rank</th><th>Tindakan</th></tr></thead><tbody id="master-body"></tbody></table></div>
@@ -175,6 +190,7 @@ const INCENTIVE_RATES = {
 };
 
 let uniqueStudents = [], competitionRecords = [], groupList = [], allRawStudents = [], classConfigs = {}, selectedNames = new Set(), visibleNamesInTable = [], currentEditId = null;
+let currentUiLanguage = 'zh';
 
 // --- 3. UTILITY FUNCTIONS ---
 // 返回数字（不再是字符串），修复类型不一致问题
@@ -205,7 +221,7 @@ function loadAllData() {
                 if (yA !== yB) return yB - yA;
                 return a.className.localeCompare(b.className) || a.name.localeCompare(b.name);
             });
-            renderMngTable(); renderEntryTable();
+            renderMngTable(); renderEntryTable(); renderMasterTable(); if (competitionRecords.length) renderAnalysisTable(true); renderIncentiveTable();
         });
     });
     db.ref('competition_records').on('value', snap => {
@@ -227,7 +243,7 @@ window.unlockAdminTools = () => {
 };
 function renderClassInputs() {
     const grid = document.getElementById('class-inputs-grid'); grid.innerHTML = "";
-    for(let i=1; i<=6; i++) grid.innerHTML += `<div><label style="font-size:12px; font-weight:700">Tahun ${i}:</label><input type="text" id="cfg-year-${i}" value="${escapeHtml(classConfigs[i]||'')}" placeholder="例：M,K,B,H" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px"></div>`;
+    for(let i=1; i<=6; i++) grid.innerHTML += `<div><label data-year-config="${i}" style="font-size:12px; font-weight:700">${uiYearLabel(i)}:</label><input type="text" id="cfg-year-${i}" value="${escapeHtml(classConfigs[i]||'')}" placeholder="例：M,K,B,H" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px"></div>`;
 }
 window.saveClassConfigs = async () => { const n = {}; for(let i=1; i<=6; i++) n[i] = document.getElementById(`cfg-year-${i}`).value; await db.ref('school_settings/class_configs').set(n); alert("OK — Konfigurasi disimpan."); };
 
@@ -367,7 +383,7 @@ async function renderAnalysisTable(shouldSync = false) {
     uniqueStudents.forEach(s => {
         const yr = getYearNum(s.className);
         mCats.forEach(cat => {
-            const kw = cat.split(" ")[0], allRecs = competitionRecords.filter(r => r.studentName === s.name && (r.category || "").includes(kw));
+            const kw = cat.split(" ")[0], allRecs = competitionRecords.filter(r => (r.studentName === s.name || cleanName(r.studentName) === s.name) && (r.category || "").includes(kw));
             if (allRecs.length === 0) return;
             const vRecs = allRecs.filter(r => r.isPAJSK !== false);
             let bP = {score: 0, txt: '-'}, bA = {score: 0, txt: '-'};
@@ -379,7 +395,7 @@ async function renderAnalysisTable(shouldSync = false) {
             ups[`pajsk_final_scores/${sk}`] = { nama: s.name, kelas: s.className, kategori: cat, pgl: bP.txt, m_pgl: bP.score, pcp: bA.txt, m_pcp: bA.score, t: Date.now() };
         });
     });
-    if (b) b.innerHTML = html; if (shouldSync && Object.keys(ups).length > 0) db.ref().update(ups);
+    if (b) b.innerHTML = html; if (shouldSync && Object.keys(ups).length > 0) await db.ref().update(ups);
 }
 
 // --- TAB 5 ---
@@ -424,12 +440,20 @@ window.exportMngExcel = () => {
 };
 
 // --- HELPERS ---
-function updateAllYearSelectors() { ['mng-year-filter', 'entry-year-filter', 'master-year-filter', 'analysis-year-filter'].forEach(id => { const el = document.getElementById(id); if(el) { el.innerHTML = '<option value="">-- Tahun --</option>'; for(let i=6; i>=1; i--) el.innerHTML += `<option value="${i}">Tahun ${i}</option>`; } }); }
-// 界面5单独处理：额外加入 PRA 选项
-    const iYF = document.getElementById('incentive-year-filter');
-    if(iYF) { iYF.innerHTML = '<option value="">-- Tahun --</option>'; for(let i=6; i>=1; i--) iYF.innerHTML += `<option value="${i}">Tahun ${i}</option>`; iYF.innerHTML += '<option value="PRA">PRA</option>'; }
-window.updateClassSelector = (yId, cId) => { const y = document.getElementById(yId).value, cEl = document.getElementById(cId); cEl.innerHTML = '<option value="">-- Kelas --</option>'; if (y && classConfigs[y]) classConfigs[y].split(',').forEach(n => cEl.innerHTML += `<option value="${y}${n.trim()}">${y}${n.trim()}</option>`); };
-window.updateIncentiveClassSelector = () => { const y = document.getElementById('incentive-year-filter').value, cEl = document.getElementById('incentive-class-filter'); cEl.innerHTML = '<option value="">-- Kelas --</option>'; if (y === 'PRA') { cEl.innerHTML += '<option value="PRA CERIA">PRA CERIA</option><option value="PRA RIANG">PRA RIANG</option>'; } else if (y && classConfigs[y]) { classConfigs[y].split(',').forEach(n => cEl.innerHTML += `<option value="${y}${n.trim()}">${y}${n.trim()}</option>`); } };
+function uiYearLabel(n) { const zh=['','一年级','二年级','三年级','四年级','五年级','六年级']; return currentUiLanguage==='zh'?(zh[n]||`第${n}年级`):currentUiLanguage==='ms'?`Tahun ${n}`:`Year ${n}`; }
+function uiFilterPlaceholder(kind) { if(kind==='year') return currentUiLanguage==='zh'?'-- 年级 --':currentUiLanguage==='ms'?'-- Tahun --':'-- Year --'; return currentUiLanguage==='zh'?'-- 班级 --':currentUiLanguage==='ms'?'-- Kelas --':'-- Class --'; }
+function updateAllYearSelectors() { ['mng-year-filter', 'entry-year-filter', 'master-year-filter', 'analysis-year-filter'].forEach(id => { const el = document.getElementById(id); if(el) { el.innerHTML = `<option value="">${uiFilterPlaceholder('year')}</option>`; for(let i=6; i>=1; i--) el.innerHTML += `<option value="${i}">${uiYearLabel(i)}</option>`; } }); }
+// Incentive tab also includes a preschool option.
+const iYF = document.getElementById('incentive-year-filter');
+if(iYF) { iYF.innerHTML = `<option value="">${uiFilterPlaceholder('year')}</option>`; for(let i=6; i>=1; i--) iYF.innerHTML += `<option value="${i}">${uiYearLabel(i)}</option>`; iYF.innerHTML += `<option value="PRA">${currentUiLanguage==='zh'?'学前班':currentUiLanguage==='ms'?'Prasekolah':'Preschool'}</option>`; }
+window.updateClassSelector = (yId, cId) => { const y = document.getElementById(yId).value, cEl = document.getElementById(cId); const prev=cEl.value; cEl.innerHTML = `<option value="">${uiFilterPlaceholder('class')}</option>`; if (y && classConfigs[y]) classConfigs[y].split(',').forEach(n => cEl.innerHTML += `<option value="${y}${n.trim()}">${y}${n.trim()}</option>`); if ([...cEl.options].some(o=>o.value===prev)) cEl.value=prev; };
+window.updateIncentiveClassSelector = () => { const y = document.getElementById('incentive-year-filter').value, cEl = document.getElementById('incentive-class-filter'); const prev=cEl.value; cEl.innerHTML = `<option value="">${uiFilterPlaceholder('class')}</option>`; if (y === 'PRA') { cEl.innerHTML += '<option value="PRA CERIA">PRA CERIA</option><option value="PRA RIANG">PRA RIANG</option>'; } else if (y && classConfigs[y]) { classConfigs[y].split(',').forEach(n => cEl.innerHTML += `<option value="${y}${n.trim()}">${y}${n.trim()}</option>`); } if ([...cEl.options].some(o=>o.value===prev)) cEl.value=prev; };
+function refreshDynamicFilterLanguage() {
+    const yearIds=['mng-year-filter','entry-year-filter','master-year-filter','analysis-year-filter','incentive-year-filter'];
+    yearIds.forEach(id=>{const el=document.getElementById(id);if(!el)return;Array.from(el.options).forEach(o=>{if(o.value==='')o.textContent=uiFilterPlaceholder('year');else if(/^\d+$/.test(o.value))o.textContent=uiYearLabel(Number(o.value));else if(o.value==='PRA')o.textContent=currentUiLanguage==='zh'?'学前班':currentUiLanguage==='ms'?'Prasekolah':'Preschool';});});
+    ['mng-class-filter','entry-class-filter','master-class-filter','analysis-class-filter','incentive-class-filter'].forEach(id=>{const el=document.getElementById(id);if(el&&el.options.length&&el.options[0].value==='')el.options[0].textContent=uiFilterPlaceholder('class');});
+    document.querySelectorAll('#class-inputs-grid label[data-year-config]').forEach(el=>{el.textContent=uiYearLabel(Number(el.dataset.yearConfig))+':';});
+}
 
 window.importMasterExcel = (el) => {
     const f = el.files[0]; if(!f) return;
@@ -467,6 +491,598 @@ window.deleteR = (id) => {
 };
 
 let sT; document.getElementById('search-input').addEventListener('input', () => { clearTimeout(sT); sT = setTimeout(renderEntryTable, 250); });
+// --- ADD-ON: Downloadable internal competition template + safe preview/import ---
+// Intentionally isolated from existing manual entry, master import/export, and incentive logic.
+const INTERNAL_COMPETITION_TEMPLATE = {
+    sheets: [
+        { name: '低年级(1-3)', grades: ['一年级','二年级','三年级'] },
+        { name: '高年级(4-6)', grades: ['四年级','五年级','六年级'] }
+    ],
+    categories: ['KELAB & PERSATUAN','BADAN BERUNIFORM','SUKAN & PERMAINAN'],
+    awards: ['JOHAN','NAIB JOHAN','KETIGA','KEEMPAT','KELIMA']
+};
+let pendingCompetitionImport = null;
+
+function normalizeImportText(v) {
+    return String(v == null ? '' : v).normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+function normalizeImportName(v) {
+    // Preserve Chinese and other Unicode letters. Do not use legacy cleanName(), which strips Chinese.
+    return normalizeImportText(v).replace(/[\s　]+/g, '').replace(/[·•.．,，、]/g, '');
+}
+function normalizeImportClass(v) {
+    return normalizeImportText(v).replace(/\s+/g, '');
+}
+function categoryFromTemplate(v) {
+    const x = normalizeImportText(v).replace(/＆/g, '&');
+    if (x.includes('UNIFORM') || x.includes('制服')) return 'BADAN BERUNIFORM';
+    if (x.includes('SUKAN') || x.includes('PERMAINAN') || x.includes('运动')) return 'SUKAN & PERMAINAN';
+    if (x.includes('KELAB') || x.includes('PERSATUAN') || x.includes('学会')) return 'KELAB & PERSATUAN';
+    return '';
+}
+function parseActualRank(v) {
+    const x = normalizeImportText(v);
+    if (!x) return 0;
+    const m = x.match(/\d+/);
+    if (m) return parseInt(m[0], 10);
+    const map = {'第一名':1,'冠军':1,'JOHAN':1,'第二名':2,'亚军':2,'NAIB JOHAN':2,'第三名':3,'季军':3,'KETIGA':3,'第四名':4,'KEEMPAT':4,'第五名':5,'KELIMA':5,'第六名':6,'第七名':7,'第八名':8,'第九名':9,'第十名':10};
+    return map[x] || 0;
+}
+function isAwardChoiceList(v) {
+    const x = normalizeImportText(v).replace(/[\s,;，；|/]+/g, '');
+    const hits = [];
+    if (x.includes('NAIBJOHAN') || x.includes('亚军') || x.includes('RUNNERUP')) hits.push('NAIB JOHAN');
+    if ((x.includes('JOHAN') && !x.startsWith('NAIBJOHAN')) || x.includes('冠军')) hits.push('JOHAN');
+    if (x.includes('KETIGA') || x.includes('季军')) hits.push('KETIGA');
+    if (x.includes('ANUGERAHSAGUHATI') || x.includes('SAGUHATI') || x.includes('EXCELLENTAWARD') || x.includes('优秀奖')) hits.push('EXCELLENT AWARD');
+    return new Set(hits).size > 1;
+}
+function awardFromTemplate(v, rank) {
+    const x = normalizeImportText(v);
+    // Some Excel validation cells were imported as the entire dropdown-source string.
+    // In that case infer the report award from the actual rank rather than treating the list as a value.
+    if (isAwardChoiceList(x)) return expectedReportAward(Number(rank) || 0);
+    if (x.includes('NAIB JOHAN') || x.includes('亚军') || x.includes('SECOND PLACE') || x.includes('RUNNER-UP') || x.includes('RUNNER UP')) return 'NAIB JOHAN';
+    if (x === 'JOHAN' || x.includes('JOHAN / 冠军') || x.includes('冠军') || x.includes('第一名') || x.includes('FIRST PLACE') || x === 'FIRST') return 'JOHAN';
+    if (x.includes('KETIGA') || x.includes('季军') || x.includes('第三名') || x.includes('THIRD PLACE')) return 'KETIGA';
+    if (x.includes('优秀奖') || x.includes('EXCELLENT AWARD') || x.includes('ANUGERAH SAGUHATI') || x.includes('SAGUHATI') || x.includes('CONSOLATION')) return 'EXCELLENT AWARD';
+    return '';
+}
+function expectedReportAward(rank) {
+    if (rank === 1) return 'JOHAN';
+    if (rank === 2) return 'NAIB JOHAN';
+    if (rank === 3) return 'KETIGA';
+    if (rank >= 4) return 'EXCELLENT AWARD';
+    return '';
+}
+function rankToPajskValue(rank) {
+    return ({1:'JOHAN',2:'NAIB JOHAN',3:'KETIGA',4:'KEEMPAT',5:'KELIMA'})[rank] || 'EXCELLENT AWARD';
+}
+function escapeImportHtml(v) { return escapeHtml(v == null ? '' : String(v)); }
+
+const COMPETITION_TEMPLATE_XLSX_BASE64 = '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';
+window.downloadCompetitionTemplate = function() {
+    try {
+        const base64 = COMPETITION_TEMPLATE_XLSX_BASE64;
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'SJKC_Competition_Template_Bilingual.xlsx';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (e) {
+        console.error(e);
+        alert('模板下载失败，请重试。');
+    }
+};
+
+const COMP_IMPORT_I18N = {
+  zh: {
+    title:'📥 导入校内比赛成绩（Excel）', description:'填写比赛名称、活动类别及学生成绩。第1至第5名计入PAJSK，第6名起不计分。可复制粘贴资料；上传后可直接修改资料再检查，无须重新上传。',
+    download:'⬇️ 下载成绩模板', upload:'⬆️ 上传填写好的模板',
+    fileType:'请上传 Excel 文件（.xlsx 或 .xls）。', fileRead:'文件读取失败，请重试。',
+    needCompetition:'请在低年级工作表的比赛名称栏填写比赛名称。', needCategory:'请在低年级工作表选择 PAJSK 活动类别。', noRows:'模板中没有已填写班级或学生姓名的成绩资料。', rosterRefreshFailed:'无法读取最新学生名单及比赛记录。为了避免错配，请检查网络/Firebase 权限后再上传。', savedScoreSyncError:'比赛记录已保存，但 PAJSK 分析分数未能同步。请检查 Firebase 权限后重新打开系统检查。',
+    sheetMissing:'找不到模板工作表。请使用系统下载的成绩模板。',
+    readCount:'已读取', importable:'可导入', duplicates:'重复', needsFix:'需处理', competition:'比赛', category:'类别',
+    status:'状态', grade:'年级', rank:'实际名次', award:'报告奖项', pajsk:'PAJSK', cls:'班级', excelName:'Excel姓名', mapped:'匹配到的学生', reason:'说明',
+    ok:'可导入', duplicate:'重复', error:'需处理', yes:'计分 / 是', no:'不计分 / 否',
+    matchedNote:'班级与姓名匹配成功', incomplete:'请填写年级、名次、奖项、班级及学生姓名', invalidRank:'实际名次必须填写 1–99 的数字', gradeClass:'年级与班级不一致', wrongSheet:'年级不属于此工作表', awardUnknown:'报告奖项无法识别', awardMismatch:'实际第 {n} 名对应的报告奖项应为 {award}', studentMissing:'找不到对应学生', studentAmbiguous:'同班同名的学生不止一位，请检查姓名或选择正确资料', duplicateNote:'疑似重复记录，不会自动导入',
+    editHint:'可直接修改下方年级、名次、奖项、班级或姓名；修改后点击「重新检查」，不必重新上传。', recheck:'重新检查修改内容', importBtn:'确认导入 {n} 条记录', cancel:'取消', close:'关闭预览', noSafe:'目前没有可安全导入的记录。请直接修改资料后重新检查。',
+    confirm:'即将新增 {n} 条比赛记录。\n比赛：{competition}\nPAJSK 类别：{category}\n\n未解决的问题与重复记录不会写入；现有记录不会被覆盖或删除。\n\n确认继续吗？',
+    noPending:'没有待导入资料，请重新上传模板。', noneSelected:'没有可导入的记录，请先修正资料。',
+    done:'导入完成：已新增 {n} 条记录。PAJSK 分析已重新计算。', writeError:'写入 Firebase 失败，系统没有确认导入。请检查网络或权限后再试。',
+    reportAwards:['JOHAN / 冠军','NAIB JOHAN / 亚军','KETIGA / 季军','EXCELLENT AWARD / 优秀奖'],
+    actions:'提示：年级单元格合并是支持的；预填但没有班级/姓名的空白行会自动忽略。'
+  },
+  ms: {
+    title:'📥 Import Keputusan Pertandingan Dalaman (Excel)', description:'Isi nama pertandingan, kategori PAJSK dan keputusan murid. Kedudukan 1 hingga 5 dikira untuk PAJSK; kedudukan 6 dan seterusnya tidak dikira. Selepas muat naik, anda boleh membetulkan data terus di sini tanpa memuat naik semula.',
+    download:'⬇️ Muat Turun Templat Keputusan', upload:'⬆️ Muat Naik Templat Yang Telah Diisi',
+    fileType:'Sila muat naik fail Excel (.xlsx atau .xls).', fileRead:'Fail gagal dibaca. Sila cuba lagi.',
+    needCompetition:'Sila isi nama pertandingan pada helaian tahun rendah.', needCategory:'Sila pilih kategori PAJSK pada helaian tahun rendah.', noRows:'Tiada keputusan berisi kelas atau nama murid ditemui dalam templat.', rosterRefreshFailed:'Senarai murid dan rekod terkini tidak dapat dibaca. Untuk mengelakkan padanan salah, semak rangkaian/kebenaran Firebase sebelum memuat naik.', savedScoreSyncError:'Rekod pertandingan telah disimpan, tetapi skor analisis PAJSK gagal disegerakkan. Semak kebenaran Firebase dan buka semula sistem untuk menyemak.',
+    sheetMissing:'Helaian templat tidak ditemui. Sila gunakan templat yang dimuat turun daripada sistem.',
+    readCount:'Dibaca', importable:'Boleh diimport', duplicates:'Pendua', needsFix:'Perlu dibaiki', competition:'Pertandingan', category:'Kategori',
+    status:'Status', grade:'Tahun', rank:'Kedudukan sebenar', award:'Anugerah laporan', pajsk:'PAJSK', cls:'Kelas', excelName:'Nama dalam Excel', mapped:'Murid yang dipadankan', reason:'Catatan',
+    ok:'Boleh diimport', duplicate:'Pendua', error:'Perlu dibaiki', yes:'Dikira / Ya', no:'Tidak dikira / Tidak',
+    matchedNote:'Kelas dan nama murid berjaya dipadankan', incomplete:'Sila lengkapkan tahun, kedudukan, anugerah, kelas dan nama murid', invalidRank:'Kedudukan sebenar mesti nombor 1–99', gradeClass:'Tahun tidak sepadan dengan kelas', wrongSheet:'Tahun tidak sepadan dengan helaian ini', awardUnknown:'Anugerah laporan tidak dapat dikenal pasti', awardMismatch:'Kedudukan {n} sepatutnya menerima anugerah {award}', studentMissing:'Murid tidak ditemui dalam senarai sekolah', studentAmbiguous:'Terdapat lebih daripada satu murid dengan nama sama dalam kelas ini. Semak nama.', duplicateNote:'Rekod mungkin pendua dan tidak akan diimport secara automatik',
+    editHint:'Anda boleh mengedit tahun, kedudukan, anugerah, kelas atau nama terus di bawah. Klik “Semak Semula” selepas mengedit; tidak perlu muat naik semula.', recheck:'Semak Semula Data Yang Diedit', importBtn:'Sahkan Import {n} Rekod', cancel:'Batal', close:'Tutup Pratonton', noSafe:'Tiada rekod yang selamat untuk diimport. Betulkan data di sini dan semak semula.',
+    confirm:'Sebanyak {n} rekod pertandingan akan ditambah.\nPertandingan: {competition}\nKategori PAJSK: {category}\n\nRekod yang belum selesai dan rekod pendua tidak akan disimpan. Rekod sedia ada tidak akan ditimpa atau dipadam.\n\nTeruskan?',
+    noPending:'Tiada data menunggu untuk diimport. Sila muat naik templat semula.', noneSelected:'Tiada rekod untuk diimport. Sila betulkan data dahulu.',
+    done:'Import selesai: {n} rekod baharu ditambah. Analisis PAJSK telah dikira semula.', writeError:'Gagal menyimpan ke Firebase. Import belum disahkan. Sila semak sambungan atau kebenaran dan cuba lagi.',
+    reportAwards:['JOHAN','NAIB JOHAN','KETIGA','ANUGERAH SAGUHATI'],
+    actions:'Nota: Sel gabungan bagi tahun disokong. Baris kosong tanpa kelas/nama murid akan diabaikan secara automatik.'
+  },
+  en: {
+    title:'📥 Import Internal Competition Results (Excel)', description:'Enter the competition name, PAJSK category and student results. Ranks 1–5 count for PAJSK; rank 6 and beyond do not. After upload, you can edit rows here and recheck them without uploading again.',
+    download:'⬇️ Download Results Template', upload:'⬆️ Upload Completed Template',
+    fileType:'Please upload an Excel file (.xlsx or .xls).', fileRead:'The file could not be read. Please try again.',
+    needCompetition:'Enter the competition name on the lower-years worksheet.', needCategory:'Select the PAJSK category on the lower-years worksheet.', noRows:'No result rows containing a class or student name were found.', rosterRefreshFailed:'The latest student roster and competition records could not be read. Check network/Firebase permissions before uploading to avoid incorrect matching.', savedScoreSyncError:'Competition records were saved, but PAJSK scores could not be synchronized. Check Firebase permissions and reopen the system to verify.',
+    sheetMissing:'The template worksheets were not found. Please use the template downloaded from the system.',
+    readCount:'Read', importable:'Ready to import', duplicates:'Duplicates', needsFix:'Needs attention', competition:'Competition', category:'Category',
+    status:'Status', grade:'Year', rank:'Actual rank', award:'Report award', pajsk:'PAJSK', cls:'Class', excelName:'Excel name', mapped:'Matched student', reason:'Notes',
+    ok:'Ready', duplicate:'Duplicate', error:'Needs attention', yes:'Counts / Yes', no:'Does not count / No',
+    matchedNote:'Class and name matched successfully', incomplete:'Fill in year, rank, award, class and student name', invalidRank:'Actual rank must be a number from 1 to 99', gradeClass:'Year does not match the class', wrongSheet:'Year does not belong on this worksheet', awardUnknown:'Report award could not be identified', awardMismatch:'Rank {n} should have the report award {award}', studentMissing:'Student not found in the school roster', studentAmbiguous:'More than one student has the same name in this class. Check the name.', duplicateNote:'Possible duplicate. This row will not be imported automatically',
+    editHint:'Edit the year, rank, award, class or name directly below. Click “Recheck Changes”; there is no need to upload the file again.', recheck:'Recheck Changes', importBtn:'Confirm Import of {n} Records', cancel:'Cancel', close:'Close Preview', noSafe:'No records are ready to import. Edit the data here and recheck.',
+    confirm:'{n} competition records will be added.\nCompetition: {competition}\nPAJSK category: {category}\n\nUnresolved rows and duplicates will be skipped. Existing records will not be overwritten or deleted.\n\nContinue?',
+    noPending:'There is no pending preview. Please upload the template again.', noneSelected:'There are no records ready to import. Please correct the data first.',
+    done:'Import complete: {n} records added. PAJSK analysis has been recalculated.', writeError:'Firebase write failed. The import was not confirmed. Check connectivity or permissions and try again.',
+    reportAwards:['JOHAN','NAIB JOHAN','KETIGA','EXCELLENT AWARD'],
+    actions:'Note: Merged year cells are supported. Pre-filled blank rows without a class/student name are ignored automatically.'
+  }
+};
+function ci18n(key, vars={}) {
+    const dict = COMP_IMPORT_I18N[currentUiLanguage] || COMP_IMPORT_I18N.zh;
+    let out = dict[key] || COMP_IMPORT_I18N.en[key] || key;
+    Object.entries(vars).forEach(([k,v]) => { out = out.replaceAll('{' + k + '}', String(v)); });
+    return out;
+}
+function localizeCompetitionImportCard() {
+    const title=document.querySelector('[data-import-static-title]');
+    const desc=document.querySelector('[data-import-static-description]');
+    const btnD=document.querySelector('#tab-record-entry button[onclick="downloadCompetitionTemplate()"]');
+    const btnU=document.querySelector('#tab-record-entry label.btn-green');
+    if(title) title.textContent=ci18n('title');
+    if(desc) desc.textContent=ci18n('description');
+    if(btnD) btnD.textContent=ci18n('download');
+    if(btnU) { const inp=btnU.querySelector('input'); btnU.textContent=ci18n('upload')+' '; if(inp) btnU.appendChild(inp); }
+}
+function canonicalImportedStudentName(st) {
+    const raw = st && st.name != null ? String(st.name).trim() : '';
+    const cleaned = cleanName(raw).trim();
+    return cleaned || raw;
+}
+function stripStudentDisplaySuffix(v) {
+    // Students are often copied from the on-screen roster as 'NAME 中文名 (5B)'.
+    // Remove only a trailing class tag, not parentheses that are part of an actual name.
+    return String(v == null ? '' : v).normalize('NFKC').trim()
+      .replace(/\s*\(\s*(?:PRA\s*)?(?:[1-6]\s*[A-Z]{1,3}|[A-Z]{1,3}\s*[1-6])\s*\)\s*$/i, '')
+      .trim();
+}
+function importNameAliases(v) {
+    const raw = stripStudentDisplaySuffix(v);
+    const vals = [normalizeImportName(raw), normalizeImportName(cleanName(raw))];
+    return new Set(vals.filter(Boolean));
+}
+function dedupeStudentCandidates(list) {
+    const map = new Map();
+    list.forEach(st => {
+        const key = `${normalizeImportClass(st.className)}|${normalizeImportName(stripStudentDisplaySuffix(st.name))}`;
+        if (!map.has(key)) map.set(key, st);
+    });
+    return Array.from(map.values());
+}
+function findStudentCandidates(inputName, inputClass) {
+    const wantedName = normalizeImportName(stripStudentDisplaySuffix(inputName));
+    const wantedClass = normalizeImportClass(inputClass);
+    const inClass = allRawStudents.filter(st => normalizeImportClass(st.className) === wantedClass);
+    // Highest confidence first: exact full Unicode name. This avoids the old bug where an
+    // exact copied name was still ambiguous because every candidate shared the same romanized alias.
+    const exact = dedupeStudentCandidates(inClass.filter(st =>
+        normalizeImportName(stripStudentDisplaySuffix(st.name)) === wantedName
+    ));
+    if (exact.length) return exact;
+    const aliases = importNameAliases(inputName);
+    return dedupeStudentCandidates(inClass.filter(st => {
+        const ca = importNameAliases(st.name);
+        return Array.from(aliases).some(a => ca.has(a));
+    }));
+}
+function importRowsDuplicateKey(studentName, studentClass, competitionName) {
+    const canonical = cleanName(studentName) || studentName;
+    return `${normalizeImportName(canonical)}|${normalizeImportClass(studentClass)}|${normalizeImportText(competitionName)}`;
+}
+async function refreshRosterAndCompetitionRecordsForImport() {
+    const results = await Promise.all([
+        db.ref('school_data_v11/students').once('value'),
+        db.ref('competition_records').once('value')
+    ]);
+    allRawStudents = Object.entries(results[0].val() || {}).map(([fid,d]) => ({fid, ...d}));
+    competitionRecords = Object.entries(results[1].val() || {}).map(([fid,d]) => ({...d, fireId:fid}));
+    // Do not rebuild the app-wide uniqueStudents cache here. Its legacy grouping uses romanized
+    // names and can collapse distinct pupils/classes. Import matching uses allRawStudents directly.
+}
+function resolvePendingCompetitionImport() {
+    if (!pendingCompetitionImport) return [];
+    const p = pendingCompetitionImport;
+    const sheetConfig = new Map(INTERNAL_COMPETITION_TEMPLATE.sheets.map(c => [c.name,c]));
+    const resolved = p.rows.map((source, index) => {
+        const row = {...source};
+        const actualRank = parseActualRank(row.rankRaw);
+        const gradeNum = getYearNum(row.grade) || getYearNum(row.cls);
+        const classNorm = normalizeImportClass(row.cls);
+        const nameAliases = importNameAliases(row.name);
+        const expectedAward = expectedReportAward(actualRank);
+        const awardListDump = isAwardChoiceList(row.awardRaw);
+        const award = awardFromTemplate(row.awardRaw, actualRank);
+        if (awardListDump && expectedAward) row.awardRaw = expectedAward;
+        let issue = '', student = null;
+        if (!row.name || !row.cls) issue = ci18n('incomplete');
+        else if (!row.grade && !gradeNum) issue = ci18n('incomplete');
+        else if (!actualRank || actualRank < 1 || actualRank > 99) issue = ci18n('invalidRank');
+        else if (!gradeNum || gradeNum !== getYearNum(row.cls)) issue = ci18n('gradeClass');
+        else if (!sheetConfig.has(row.sheet) || !sheetConfig.get(row.sheet).grades.includes(({1:'一年级',2:'二年级',3:'三年级',4:'四年级',5:'五年级',6:'六年级'})[gradeNum])) issue = ci18n('wrongSheet');
+        else if (!award) issue = ci18n('awardUnknown');
+        else if (award !== expectedAward) issue = ci18n('awardMismatch',{n:actualRank, award:expectedAward});
+        else {
+            const found = findStudentCandidates(row.name, row.cls);
+            row.candidates = found;
+            const selected = row.selectedStudentFid ? found.find(st => st.fid === row.selectedStudentFid) : null;
+            if (selected) student = selected;
+            else if (found.length === 1) student = found[0];
+            else if (found.length === 0) issue = ci18n('studentMissing');
+            else issue = ci18n('studentAmbiguous');
+        }
+        row.actualRank = actualRank;
+        row.award = award;
+        row.expectedAward = expectedAward;
+        row.pajskRank = rankToPajskValue(actualRank);
+        row.pajskEligible = actualRank >= 1 && actualRank <= 5;
+        row.student = student;
+        row.recordName = student ? canonicalImportedStudentName(student) : '';
+        row.issue = issue;
+        row.status = issue ? 'error' : 'matched';
+        row.sourceIndex = index;
+        return row;
+    });
+    // Skip empty template placeholder rows. They have prefilled ranks/awards but no student.
+    const existing = new Set(competitionRecords.map(r => importRowsDuplicateKey(r.studentName||'',r.studentClass||'',r.competitionName||'')));
+    const batch = new Set();
+    resolved.forEach(r => {
+        if (r.status !== 'matched') return;
+        const key = importRowsDuplicateKey(r.recordName || r.name, r.student.className || r.cls, p.competitionName);
+        if (existing.has(key) || batch.has(key)) { r.status='duplicate'; r.issue=ci18n('duplicateNote'); }
+        else batch.add(key);
+    });
+    p.resolvedRows = resolved;
+    return resolved;
+}
+function renderCompetitionImportPreview() {
+    const preview = document.getElementById('competition-import-preview');
+    const status = document.getElementById('competition-import-status');
+    if (!preview || !pendingCompetitionImport) return;
+    const p = pendingCompetitionImport;
+    const rows = resolvePendingCompetitionImport();
+    const matched = rows.filter(r=>r.status==='matched').length;
+    const duplicates = rows.filter(r=>r.status==='duplicate').length;
+    const errors = rows.filter(r=>r.status==='error').length;
+    status.innerHTML = `<div style="font-weight:700;color:#1e3a8a">${ci18n('readCount')}：${rows.length}　｜　${ci18n('importable')}：${matched}　｜　${ci18n('duplicates')}：${duplicates}　｜　${ci18n('needsFix')}：${errors}</div><div style="margin-top:4px">${ci18n('competition')}：${escapeImportHtml(p.competitionName)}　${ci18n('category')}：${escapeImportHtml(p.category)}</div>`;
+    let html = `<p style="margin:8px 0;color:#475569">${ci18n('editHint')}</p><p style="margin:6px 0;color:#64748b;font-size:12px">${ci18n('actions')}</p>`;
+    html += `<div style="max-height:400px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px"><table class="data-table"><thead><tr><th>${ci18n('status')}</th><th>${ci18n('grade')}</th><th>${ci18n('rank')}</th><th>${ci18n('award')}</th><th>${ci18n('pajsk')}</th><th>${ci18n('cls')}</th><th>${ci18n('excelName')}</th><th>${ci18n('mapped')}</th><th>${ci18n('reason')}</th></tr></thead><tbody>`;
+    rows.forEach((r,i) => {
+        const label=r.status==='matched'?ci18n('ok'):r.status==='duplicate'?ci18n('duplicate'):ci18n('error');
+        const color=r.status==='matched'?'#166534':r.status==='duplicate'?'#92400e':'#991b1b';
+        const awardVal = r.award || expectedReportAward(parseActualRank(r.rankRaw)) || '';
+        const awardOptions = [['JOHAN',ci18n('reportAwards')[0]],['NAIB JOHAN',ci18n('reportAwards')[1]],['KETIGA',ci18n('reportAwards')[2]],['EXCELLENT AWARD',ci18n('reportAwards')[3]]]
+          .map(([v,label])=>`<option value="${v}" ${awardVal===v?'selected':''}>${escapeImportHtml(label)}</option>`).join('');
+        let matchedCell = escapeImportHtml(r.student ? `${r.student.name} (${r.student.className||r.cls})` : '-');
+        if (!r.student && r.candidates && r.candidates.length > 1) {
+          const candidateOptions = [`<option value="">${escapeImportHtml(currentUiLanguage==='ms'?'Pilih murid yang betul':currentUiLanguage==='en'?'Choose the correct student':'选择正确的学生')}</option>`]
+            .concat(r.candidates.map(st => {
+              const gender = st.gender && st.gender !== '-' ? ` · ${st.gender}` : '';
+              const labelText = `${st.name} (${st.className||r.cls})${gender}`;
+              return `<option value="${escapeImportHtml(st.fid)}" ${r.selectedStudentFid===st.fid?'selected':''}>${escapeImportHtml(labelText)}</option>`;
+            })).join('');
+          matchedCell = `<select data-import-row="${i}" data-import-field="selectedStudentFid" style="min-width:210px">${candidateOptions}</select>`;
+        }
+        html += `<tr>
+          <td style="color:${color};font-weight:700;white-space:nowrap">${label}</td>
+          <td><input data-import-row="${i}" data-import-field="grade" value="${escapeImportHtml(r.grade)}" style="min-width:90px;width:90px"></td>
+          <td><input type="number" min="1" max="99" data-import-row="${i}" data-import-field="rankRaw" value="${escapeImportHtml(r.rankRaw)}" style="min-width:70px;width:70px"></td>
+          <td><select data-import-row="${i}" data-import-field="awardRaw" style="min-width:150px">${awardOptions}</select></td>
+          <td>${r.pajskEligible?ci18n('yes'):ci18n('no')}</td>
+          <td><input data-import-row="${i}" data-import-field="cls" value="${escapeImportHtml(r.cls)}" style="min-width:70px;width:70px"></td>
+          <td><input data-import-row="${i}" data-import-field="name" value="${escapeImportHtml(r.name)}" style="min-width:180px;width:180px"></td>
+          <td>${matchedCell}</td>
+          <td style="min-width:180px">${escapeImportHtml(r.issue || ci18n('matchedNote'))}</td>
+        </tr>`;
+    });
+    html += '</tbody></table></div>';
+    html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn btn-blue" onclick="recheckCompetitionImport()">${ci18n('recheck')}</button>`;
+    if (matched > 0) html += `<button type="button" class="btn btn-green" onclick="confirmCompetitionTemplateImport()">${ci18n('importBtn',{n:matched})}</button>`;
+    html += `<button type="button" class="btn btn-blue" onclick="cancelCompetitionTemplateImport()" style="background:#64748b">${ci18n('cancel')}</button></div>`;
+    if (matched===0) html += `<p style="color:#b91c1c;font-weight:700;margin-top:10px">${ci18n('noSafe')}</p>`;
+    preview.innerHTML=html;
+    preview.classList.remove('hidden');
+    preview.querySelectorAll('[data-import-row][data-import-field]').forEach(el=>el.addEventListener('change',function(){
+        const idx=Number(this.dataset.importRow), field=this.dataset.importField;
+        if (!pendingCompetitionImport || !pendingCompetitionImport.rows[idx] || !['grade','rankRaw','awardRaw','cls','name','selectedStudentFid'].includes(field)) return;
+        pendingCompetitionImport.rows[idx][field]=this.value;
+        // Rank determines the report award by school policy, so updating rank preselects its correct award.
+        if (field==='rankRaw') {
+            const rank=parseActualRank(this.value), award=expectedReportAward(rank);
+            if (award) {
+                pendingCompetitionImport.rows[idx].awardRaw=award;
+                const awardSel=preview.querySelector(`[data-import-row="${idx}"][data-import-field="awardRaw"]`);
+                if (awardSel) awardSel.value=award;
+            }
+        }
+    }));
+}
+window.updateCompetitionImportField = function(idx, field, value) {
+    if (!pendingCompetitionImport || !pendingCompetitionImport.rows[idx]) return;
+    if (!['grade','rankRaw','awardRaw','cls','name','selectedStudentFid'].includes(field)) return;
+    pendingCompetitionImport.rows[idx][field]=value;
+};
+window.recheckCompetitionImport = function() {
+    if (!pendingCompetitionImport) return;
+    // Read current form values into the model before recalculating any matching or duplicate status.
+    const preview=document.getElementById('competition-import-preview');
+    if (preview) preview.querySelectorAll('[data-import-row][data-import-field]').forEach(el=>{
+      const idx=Number(el.dataset.importRow), field=el.dataset.importField;
+      if (pendingCompetitionImport.rows[idx]) pendingCompetitionImport.rows[idx][field]=el.value;
+    });
+    renderCompetitionImportPreview();
+};
+window.previewCompetitionTemplate = function(input) {
+    const file = input.files && input.files[0];
+    const status = document.getElementById('competition-import-status');
+    const preview = document.getElementById('competition-import-preview');
+    preview.classList.add('hidden'); preview.innerHTML = ''; pendingCompetitionImport = null;
+    if (!file) return;
+    if (!/\.(xlsx|xls)$/i.test(file.name)) { status.textContent=ci18n('fileType'); input.value=''; return; }
+    const reader = new FileReader();
+    reader.onerror = () => { status.textContent=ci18n('fileRead'); input.value=''; };
+    reader.onload = async function(ev) {
+      try {
+        const wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array', cellDates:false, cellFormula:true});
+        if (!wb.SheetNames.some(n=>INTERNAL_COMPETITION_TEMPLATE.sheets.some(c=>c.name===n))) throw new Error(ci18n('sheetMissing'));
+        // Require fresh data before matching: stale roster data can create false matches or duplicate imports.
+        try { await refreshRosterAndCompetitionRecordsForImport(); }
+        catch (refreshErr) { console.error('Unable to refresh Firebase data before import preview.', refreshErr); throw new Error(ci18n('rosterRefreshFailed')); }
+        const importedRows=[];
+        let competitionName='', category='';
+        INTERNAL_COMPETITION_TEMPLATE.sheets.forEach(cfg=>{
+          const ws=wb.Sheets[cfg.name]; if(!ws) return;
+          const nameCell=ws['B2'];
+          const categoryCell=ws['B3'];
+          if(!competitionName && nameCell && nameCell.v) competitionName=String(nameCell.v).trim();
+          if(!category && categoryCell && categoryCell.v) category=categoryFromTemplate(categoryCell.v);
+          const matrix=XLSX.utils.sheet_to_json(ws,{header:1,range:4,defval:'',raw:false});
+          const header = (matrix[0] || []).map(v => normalizeImportText(v));
+          const colIndex = (patterns, fallback) => {
+            const i = header.findIndex(h => patterns.some(p => h.includes(p)));
+            return i >= 0 ? i : fallback;
+          };
+          const col = {
+            grade: colIndex(['年级','TAHUN','GRADE','YEAR'],0),
+            rank: colIndex(['实际名次','KEDUDUKAN','RANK','名次'],1),
+            award: colIndex(['报告奖项','ANUGERAH','AWARD','奖项'],2),
+            cls: colIndex(['班级','KELAS','CLASS'],3),
+            name: colIndex(['学生姓名','NAMA MURID','STUDENT NAME','姓名'],4)
+          };
+          let lastGrade='';
+          matrix.slice(1).forEach((line,idx)=>{
+            let grade=String(line[col.grade]||'').trim();
+            const rankRaw=String(line[col.rank]??'').trim(), awardRaw=String(line[col.award]||'').trim(), cls=String(line[col.cls]||'').trim(), name=String(line[col.name]||'').trim();
+            if(grade) lastGrade=grade;
+            else if(rankRaw || awardRaw || cls || name) grade=lastGrade;
+            // Drop pre-filled award/rank rows where the teacher has not entered either student or class.
+            if(!cls && !name) return;
+            importedRows.push({sheet:cfg.name,rowNumber:idx+6,grade,rankRaw,awardRaw,cls,name});
+          });
+        });
+        if (!competitionName) throw new Error(ci18n('needCompetition'));
+        if (!category) throw new Error(ci18n('needCategory'));
+        if (!importedRows.length) throw new Error(ci18n('noRows'));
+        pendingCompetitionImport={competitionName:competitionName.trim(),category,rows:importedRows};
+        renderCompetitionImportPreview();
+      } catch(err) {
+        console.error(err); status.textContent=err.message||ci18n('fileRead'); input.value='';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+};
+window.cancelCompetitionTemplateImport = function() {
+    pendingCompetitionImport=null;
+    const preview=document.getElementById('competition-import-preview'); if(preview){preview.classList.add('hidden');preview.innerHTML='';}
+    const input=document.getElementById('competition-template-file'); if(input) input.value='';
+};
+window.confirmCompetitionTemplateImport = async function() {
+    if(!pendingCompetitionImport) return alert(ci18n('noPending'));
+    const preview=document.getElementById('competition-import-preview');
+    if(preview) preview.querySelectorAll('[data-import-row][data-import-field]').forEach(el=>{
+      const idx=Number(el.dataset.importRow), field=el.dataset.importField;
+      if(pendingCompetitionImport.rows[idx]) pendingCompetitionImport.rows[idx][field]=el.value;
+    });
+    const rows=resolvePendingCompetitionImport().filter(r=>r.status==='matched');
+    if(!rows.length) { renderCompetitionImportPreview(); return alert(ci18n('noneSelected')); }
+    const p=pendingCompetitionImport;
+    const msg=ci18n('confirm',{n:rows.length,competition:p.competitionName,category:p.category});
+    if(!confirm(msg)) return;
+    const updates={}, newlyCreated=[], now=Date.now();
+    rows.forEach((r,idx)=>{
+      const id='TPL_'+now+'_'+idx+'_'+Math.random().toString(36).slice(2,7);
+      const record={
+        studentName:String(canonicalImportedStudentName(r.student)||r.recordName||r.name||'').trim(),
+        studentClass:String(r.student.className||r.cls).trim(),
+        competitionName:p.competitionName.trim().toUpperCase(), category:p.category, level:'SEKOLAH',
+        rank:r.pajskRank, actualRank:r.actualRank, reportAward:r.award, role:'1', org:'SEKOLAH',
+        date:document.getElementById('comp-date').value || (()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;})(),
+        timestamp:now+idx,isOnline:false,isGroup:false,isMedalSystem:false,isPAJSK:r.pajskEligible
+      };
+      updates[`competition_records/${id}`]=record;
+      newlyCreated.push({...record,fireId:id});
+    });
+    try {
+      // Firebase root multi-location update is atomic: either all new records are saved or none are.
+      await db.ref().update(updates);
+    } catch(err) {
+      console.error(err);
+      alert(ci18n('writeError')+(err&&err.message?'\n'+err.message:''));
+      return;
+    }
+    // Update local cache immediately. This avoids depending on the value-listener timing before recalculation.
+    const knownIds=new Set(competitionRecords.map(r=>r.fireId));
+    newlyCreated.forEach(r=>{ if(!knownIds.has(r.fireId)) competitionRecords.push(r); });
+    try {
+      renderMasterTable(); renderMngTable(); renderEntryTable(); renderIncentiveTable();
+      await renderAnalysisTable(true);
+      cancelCompetitionTemplateImport();
+      document.getElementById('competition-import-status').textContent=ci18n('done',{n:rows.length});
+      alert(ci18n('done',{n:rows.length}));
+    } catch(scoreErr) {
+      console.error('Competition records were saved but PAJSK final-score sync failed.',scoreErr);
+      // Keep the preview closed only after the record write succeeds; let user know sync failure separately.
+      cancelCompetitionTemplateImport();
+      document.getElementById('competition-import-status').textContent=ci18n('savedScoreSyncError');
+      alert(ci18n('savedScoreSyncError'));
+    }
+};
+
+// --- Multilingual interface (UI only; database values and student data are never translated) ---
+const UI_TRANSLATIONS = [
+ ['👥 1. Pengurusan Kelas','👥 1. 班级管理','👥 1. Class Management'],
+ ['📝 2. Pendaftaran Pertandingan','📝 2. 比赛录入','📝 2. Competition Entry'],
+ ['📊 3. Rekod Utama','📊 3. 导入导出总表','📊 3. Master Records'],
+ ['🏆 4. Analisis Skor Tertinggi','🏆 4. 最高分分析','🏆 4. Highest Score Analysis'],
+ ['🔒 5. Penyelesaian Insentif','🔒 5. 奖励金结算','🔒 5. Incentive Settlement'],
+ ['📝 Pendaftaran Keputusan Pertandingan','📝 校内比赛成绩登记','📝 Internal Competition Results'],
+ ['📥 Import Keputusan Pertandingan Dalaman (Excel)','📥 导入校内比赛成绩（Excel）','📥 Import Internal Competition Results (Excel)'],
+ ['Muat Turun Templat Keputusan','下载成绩模板','Download Results Template'],
+ ['⬇️ Muat Turun Templat Keputusan','⬇️ 下载成绩模板','⬇️ Download Results Template'],
+ ['Muat Naik Templat Yang Telah Diisi','上传填写好的模板','Upload Completed Template'],
+ ['⬆️ Muat Naik Templat Yang Telah Diisi','⬆️ 上传填写好的模板','⬆️ Upload Completed Template'],
+ ['Isi nama pertandingan, kategori PAJSK dan keputusan murid. Kedudukan 1–5 dikira untuk PAJSK; kedudukan 6 dan seterusnya tidak dikira. Data boleh disalin dan ditampal. Selepas muat naik, semak dan betulkan terus di sini tanpa muat naik semula.','填写比赛名称、活动类别及学生成绩。第1至第5名计入PAJSK，第6名起不计分。可复制粘贴资料；上传后可直接修改资料再检查，无须重新上传。','Enter the competition name, PAJSK category and student results. Ranks 1–5 count for PAJSK; rank 6 and beyond do not. You can edit the preview after upload without uploading again.'],
+ ['Format: Off/On','格式：线下/线上','Format: Offline/Online'],
+ ['Unit: Indi/Pasu','单位：个人/团体','Unit: Individual/Team'],
+ ['Sistem: Rank/Ping','系统：名次/奖牌','System: Rank/Medal'],
+ ['PAJSK: No/Yes','PAJSK：否/是','PAJSK: No/Yes'],
+ ['JENIS','活动类别','CATEGORY'], ['PERINGKAT','比赛级别','LEVEL'], ['PENGLIBATAN','参与角色','PARTICIPATION'], ['PENCAPAIAN','成绩/名次','ACHIEVEMENT'],
+ ['Nama Pertandingan','比赛名称','Competition Name'], ['Tarikh','日期','Date'], ['Anjuran','主办单位','Organiser'], ['Nama','姓名','Name'], ['Kelas','班级','Class'], ['Nama Murid','学生姓名','Student Name'],
+ ['Simpan Rekod','保存记录','Save Records'], ['💾 Simpan Rekod','💾 保存记录','💾 Save Records'], ['Rekod Keseluruhan','全部记录','Master Records'], ['Export (15-Col)','导出总表（15栏）','Export Master (15 Columns)'], ['📥 Export (15-Col)','📥 导出总表（15栏）','📥 Export Master (15 Columns)'],
+ ['Import','导入','Import'], ['Export List','导出名单','Export List'], ['Export Analisis','导出分析','Export Analysis'], ['📥 Export Analisis','📥 导出分析','📥 Export Analysis'], ['Analisis PAJSK','PAJSK 分析','PAJSK Analysis'],
+ ['Summary奖励金','奖励金汇总','Incentive Summary'], ['Export Detailed Report','导出详细报告','Export Detailed Report'], ['Buka Kunci','解锁','Unlock'], ['Kata Laluan','密码','Password'], ['Simpan','保存','Save'], ['Updated!','更新成功！','Updated!'], ['Detail','详情','Details'], ['Cari nama murid...','搜索学生姓名…','Search student name…'], ['Cari...','搜索…','Search…'],
+ ['Nama (Klik Detail)','姓名（点击查看详情）','Name (click for details)'], ['Menang','获奖次数','Awards'], ['Jumlah (RM)','金额（RM）','Amount (RM)'], ['Tindakan','操作','Actions'], ['Nama Pertandingan','比赛名称','Competition Name'], ['KELAB & PERSATUAN','学会与社团','Clubs & Societies'], ['BADAN BERUNIFORM','制服团体','Uniformed Bodies'], ['SUKAN & PERMAINAN','体育与游戏','Sports & Games'],
+ ['ANTARABANGSA','国际','International'], ['KEBANGSAAN','全国','National'], ['NEGERI','州','State'], ['ZON/DAERAH','区/县','Zone/District'], ['SEKOLAH','校内','School'], ['JOHAN','冠军','Champion'], ['NAIB JOHAN','亚军','Runner-up'], ['KETIGA','季军','Third Place'], ['KEEMPAT','第四名','Fourth Place'], ['KELIMA','第五名','Fifth Place'], ['EXCELLENT AWARD','优秀奖','Excellent Award'], ['PENYERTAAN','参与','Participation'], ['EMAS','金牌','Gold'], ['PERAK','银牌','Silver'], ['GANGSA','铜牌','Bronze'],
+ ['Alat Pentadbiran Tahunan','年度管理工具','Annual Administration Tools'], ['Upload Nama Murid (Multi-Sheet)','上传学生名单（多工作表）','Upload Student List (Multi-Sheet)'], ['SATU KLIK: Naik Kelas (1-6)','一键升级班级（1–6）','ONE CLICK: Promote Years (1–6)'], ['Konfigurasi Nama Kelas','班级名称设置','Class Name Configuration'], ['Simpan Konfigurasi','保存设置','Save Configuration'], ['Agihan Kumpulan (Tahun 6->1)','分配小组（六年级至一年级）','Group Assignment (Year 6 to 1)'], ['Nama','姓名','Name'], ['Kelas','班级','Class'], ['Kelab','社团','Club'], ['Uniform','制服团体','Uniformed Body'], ['Sukan','体育','Sports'], ['Simpan','保存','Save'], ['Cari','搜索','Search'],
+ ['Max Pgl','最高参与分','Max Participation'], ['Max Pcp','最高成绩分','Max Achievement'], ['M','分数','Score'], ['BIL','序号','No.'], ['Pertandingan','比赛','Competition'], ['Format','形式','Format'], ['Unit','单位','Unit'], ['Sis','系统','System'], ['Level','级别','Level'], ['Rank','名次','Rank'], ['Edit','编辑','Edit'], ['Simpan','保存','Save'], ['Tutup','关闭','Close'],
+ ['副校长比赛报告 / Laporan PK','副校长比赛报告 / Laporan PK','Deputy Principal Competition Report'],
+ ['Bahasa Melayu','马来文','Malay'], ['English','英文','English'],
+ ['🛠️ Alat Pentadbiran Tahunan','🛠️ 年度管理工具','🛠️ Annual Administration Tools'],
+ ['📤 Upload Nama Murid (Multi-Sheet)','📤 上传学生名单（多工作表）','📤 Upload Student List (Multi-Sheet)'],
+ ['⚡ SATU KLIK: Naik Kelas (1-6)','⚡ 一键升级班级（1–6）','⚡ ONE CLICK: Promote Years (1–6)'],
+ ['📋 Konfigurasi Nama Kelas','📋 班级名称设置','📋 Class Name Configuration'],
+ ['💾 Simpan Konfigurasi','💾 保存设置','💾 Save Configuration'],
+ ['👥 Agihan Kumpulan (Tahun 6->1)','👥 分配小组（六年级至一年级）','👥 Group Assignment (Year 6 to 1)'],
+ ['📥 Export List','📥 导出名单','📥 Export List'],
+ ['📊 Rekod Keseluruhan','📊 全部记录','📊 Master Records'],
+ ['📤 Import','📤 导入','📤 Import'],
+ ['📥 Export Analisis','📥 导出分析','📥 Export Analysis'],
+ ['🔒 Kata Laluan','🔒 密码','🔒 Password'],
+ ['💰 Summary奖励金','💰 奖励金汇总','💰 Incentive Summary'],
+ ['📥 Export Detailed Report','📥 导出详细报告','📥 Export Detailed Report'],
+ ['Buka Kunci','解锁','Unlock'], ['Simpan Konfigurasi','保存设置','Save Configuration'],
+ ['Pertandingan','比赛','Competition'], ['Format','形式','Format'], ['Fmt','形式','Format'], ['Sis','系统','System'], ['Kategori','类别','Category'], ['Tindakan','操作','Actions'],
+ ['Off/On','线下/线上','Offline/Online'], ['Ind/Pas','个人/团体','Individual/Team'], ['Rank/Ping','名次/奖牌','Rank/Medal'], ['No/Yes PAJSK','否/是 PAJSK','No/Yes PAJSK'],
+ ['LEVEL','比赛级别','LEVEL'], ['ROLE','参与角色','ROLE'], ['RANK','名次','RANK'], ['Simpan','保存','Save'], ['Tarikh','日期','Date'], ['Anjuran','主办单位','Organiser'],
+ ['KELAB & PERSATUAN','学会与社团','Clubs & Societies'], ['BADAN BERUNIFORM','制服团体','Uniformed Bodies'], ['SUKAN & PERMAINAN','体育与游戏','Sports & Games'],
+ ['PAJSK 活动类别','PAJSK 活动类别','PAJSK Category'], ['Kategori PAJSK','PAJSK 活动类别','PAJSK Category'],
+ ['界面语言 / Bahasa / Language','界面语言 / Bahasa / Language','Interface Language / Bahasa / 中文'],
+ ['📄 副校长比赛报告 / Laporan PK','📄 副校长比赛报告','📄 Deputy Principal Report'],
+ ['🏆 Analisis PAJSK','🏆 PAJSK 分析','🏆 PAJSK Analysis'],
+ ['Selected:','已选择：','Selected:'], ['Total RM','总额 RM','Total RM'], ['Total: RM','总计：RM','Total: RM'], ['RM','RM','RM']
+];
+const uiTranslationIndex = (() => { const idx = new Map(); UI_TRANSLATIONS.forEach(([ms,zh,en]) => { idx.set(ms,[ms,zh,en]); idx.set(zh,[ms,zh,en]); idx.set(en,[ms,zh,en]); }); return idx; })();
+function translateUiTextNode(node) {
+    if (!node || node.nodeType !== 3 || !node.parentElement) return;
+    if (node.parentElement.closest('tbody,script,style,textarea,option[data-no-translate],#modal-student-name,#competition-import-preview,#competition-import-status')) return;
+    if (node.__uiSource === undefined) {
+        const raw = node.nodeValue || ''; const trim = raw.trim();
+        if (!trim || !uiTranslationIndex.has(trim)) return;
+        node.__uiSource = trim; node.__uiLeading = raw.match(/^\s*/)[0]; node.__uiTrailing = raw.match(/\s*$/)[0];
+    }
+    const entry = uiTranslationIndex.get(node.__uiSource); if (!entry) return;
+    const val = entry[currentUiLanguage === 'ms' ? 0 : currentUiLanguage === 'zh' ? 1 : 2];
+    const next = (node.__uiLeading || '') + val + (node.__uiTrailing || '');
+    if (node.nodeValue !== next) node.nodeValue = next;
+}
+function translateUiAttributes(root=document) {
+    root.querySelectorAll('input[placeholder],textarea[placeholder],button[title],input[title],select[aria-label],option').forEach(el => {
+        if (!el.dataset.uiOriginalPlaceholder && el.hasAttribute('placeholder')) el.dataset.uiOriginalPlaceholder = el.getAttribute('placeholder');
+        if (el.dataset.uiOriginalPlaceholder && uiTranslationIndex.has(el.dataset.uiOriginalPlaceholder)) el.setAttribute('placeholder', uiTranslationIndex.get(el.dataset.uiOriginalPlaceholder)[currentUiLanguage==='ms'?0:currentUiLanguage==='zh'?1:2]);
+        if (!el.dataset.uiOriginalTitle && el.hasAttribute('title')) el.dataset.uiOriginalTitle = el.getAttribute('title');
+        if (el.dataset.uiOriginalTitle && uiTranslationIndex.has(el.dataset.uiOriginalTitle)) el.setAttribute('title', uiTranslationIndex.get(el.dataset.uiOriginalTitle)[currentUiLanguage==='ms'?0:currentUiLanguage==='zh'?1:2]);
+    });
+}
+window.setUiLanguage = function(lang) {
+    currentUiLanguage = ['zh','ms','en'].includes(lang) ? lang : 'zh';
+    try { localStorage.setItem('kokoUiLanguage', currentUiLanguage); } catch(e) {}
+    document.documentElement.lang = currentUiLanguage === 'zh' ? 'zh-CN' : currentUiLanguage;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); const nodes=[]; while(walker.nextNode()) nodes.push(walker.currentNode); nodes.forEach(translateUiTextNode);
+    translateUiAttributes();
+    // Deterministic labels for the five main tabs; these should never remain in the previous language.
+    const primaryTabs = {
+      zh:['👥 1. 班级管理','📝 2. 比赛录入','📊 3. 导入导出总表','🏆 4. 最高分分析','🔒 5. 奖励金结算'],
+      ms:['👥 1. Pengurusan Kelas','📝 2. Pendaftaran Pertandingan','📊 3. Rekod Utama','🏆 4. Analisis PAJSK','🔒 5. Penyelesaian Insentif'],
+      en:['👥 1. Class Management','📝 2. Competition Entry','📊 3. Master Records','🏆 4. PAJSK Analysis','🔒 5. Incentive Settlement']
+    }[currentUiLanguage];
+    document.querySelectorAll('.nav-tabs .tab-btn').forEach((btn,i)=>{ if(primaryTabs[i]) btn.textContent=primaryTabs[i]; });
+    const lab=document.getElementById('language-label'); if(lab) lab.textContent = currentUiLanguage==='zh'?'界面语言 / Bahasa / Language':currentUiLanguage==='ms'?'Bahasa Antara Muka / 中文 / Language':'Interface Language / 中文 / Bahasa';
+    document.title = currentUiLanguage==='zh'?'校内课外活动与比赛管理系统':currentUiLanguage==='ms'?'Sistem Pengurusan Kokurikulum dan Pertandingan':'Co-curricular & Competition Management System';
+    if (typeof refreshDynamicFilterLanguage === 'function') refreshDynamicFilterLanguage();
+    if (typeof localizeCompetitionImportCard === 'function') localizeCompetitionImportCard();
+    if (typeof renderCompetitionImportPreview === 'function' && pendingCompetitionImport) {
+        const livePreview=document.getElementById('competition-import-preview');
+        if (livePreview) livePreview.querySelectorAll('[data-import-row][data-import-field]').forEach(el=>{
+            const idx=Number(el.dataset.importRow), field=el.dataset.importField;
+            if(pendingCompetitionImport.rows[idx]) pendingCompetitionImport.rows[idx][field]=el.value;
+        });
+        renderCompetitionImportPreview();
+    }
+};
+(function initUiLanguage(){
+    // Lock option values before translating labels, so UI language never changes Firebase/database enum values.
+    document.querySelectorAll('option').forEach(o => { if (!o.hasAttribute('value')) o.setAttribute('value', o.textContent.trim()); });
+    const picker=document.getElementById('ui-language'); let saved='zh'; try { saved=localStorage.getItem('kokoUiLanguage') || 'zh'; } catch(e) {}
+    if(picker) picker.value=saved; window.setUiLanguage(saved);
+    const observer=new MutationObserver(muts=>muts.forEach(m=>{ if(m.type==='characterData') translateUiTextNode(m.target); m.addedNodes && m.addedNodes.forEach(n=>{ if(n.nodeType===3) translateUiTextNode(n); else if(n.nodeType===1){ const walker=document.createTreeWalker(n,NodeFilter.SHOW_TEXT); const nodes=[]; while(walker.nextNode()) nodes.push(walker.currentNode); nodes.forEach(translateUiTextNode); translateUiAttributes(n); } }); }));
+    observer.observe(document.body,{subtree:true,childList:true,characterData:true});
+})();
+
+// One entry serves both outputs: rank 1-3 keep their medal position; PAJSK ranks 4-5 are labelled Excellent Award in the deputy-principal report.
+window.exportDeputyPrincipalCompetitionReport = function() {
+    const rows = [['NAMA MURID / 学生姓名','KELAS / 班级','PERTANDINGAN / 比赛名称','KATEGORI / 类别','KEDUDUKAN SEBENAR / 实际名次','ANUGERAH UNTUK LAPORAN / 报告奖项','PAJSK / 是否计分']];
+    const recs = competitionRecords.filter(r => {
+        if (String(r.level||'').toUpperCase() !== 'SEKOLAH') return false;
+        if (r.reportAward) return true;
+        return ['JOHAN','NAIB JOHAN','KETIGA','KEEMPAT','KELIMA'].includes(String(r.rank||'').toUpperCase());
+    }).sort((a,b)=>String(a.competitionName).localeCompare(String(b.competitionName)) || Number(a.actualRank||99)-Number(b.actualRank||99) || String(a.studentClass).localeCompare(String(b.studentClass)) || String(a.studentName).localeCompare(String(b.studentName)));
+    recs.forEach(r => {
+        const rank=String(r.rank||'').toUpperCase();
+        const actualRank = Number(r.actualRank || ({'JOHAN':1,'NAIB JOHAN':2,'KETIGA':3,'KEEMPAT':4,'KELIMA':5}[rank] || 0));
+        const award = r.reportAward || (rank==='JOHAN'?'JOHAN':rank==='NAIB JOHAN'?'NAIB JOHAN':rank==='KETIGA'?'KETIGA':(['KEEMPAT','KELIMA'].includes(rank)?'EXCELLENT AWARD':''));
+        if (!award) return;
+        const awardDisplay = award==='JOHAN'?'JOHAN / 冠军':award==='NAIB JOHAN'?'NAIB JOHAN / 亚军':award==='KETIGA'?'KETIGA / 季军':(currentUiLanguage==='ms'?'ANUGERAH SAGUHATI / 优秀奖':'EXCELLENT AWARD / 优秀奖');
+        rows.push([r.studentName,r.studentClass,r.competitionName,r.category,actualRank || '-',awardDisplay,r.isPAJSK!==false && actualRank>=1 && actualRank<=5?'YA / 是':'TIDAK / 否']);
+    });
+    if (rows.length===1) { alert('没有可导出的校内比赛获奖记录。 / Tiada rekod anugerah pertandingan sekolah.'); return; }
+    const sheet=XLSX.utils.aoa_to_sheet(rows); sheet['!cols']=[{wch:28},{wch:14},{wch:36},{wch:28},{wch:24},{wch:34},{wch:20}];
+    XLSX.writeFile({SheetNames:['DeputyPrincipalReport'],Sheets:{DeputyPrincipalReport:sheet}},'Deputy_Principal_Competition_Report.xlsx');
+};
+
+localizeCompetitionImportCard();
 loadAllData();
 </script>
 </body>
