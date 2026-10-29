@@ -27,6 +27,8 @@
         .nav-menu { display: flex; gap: 5px; overflow-x: auto; }
         .nav-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; white-space: nowrap; transition: 0.2s; }
         .nav-btn.active { background: var(--accent); color: black; font-weight: bold; border-color: var(--accent); }
+        .ui-language-select { width:auto; min-width:120px; max-width:150px; margin:0 0 0 8px; padding:7px 8px; border-radius:5px; border:1px solid rgba(255,255,255,.35); background:#fff; color:#1f2937; font-size:.82rem; flex-shrink:0; }
+        @media (max-width: 760px) { .navbar { gap:8px; padding:0 .5rem; } .nav-brand { font-size:.9rem; } .ui-language-select { min-width:105px; } }
 
         /* Layout & Cards */
         .container { max-width: 900px; margin: 15px auto; padding: 0 15px; }
@@ -47,14 +49,25 @@
         .btn:hover { opacity:0.9; }
         .btn-blue { background: var(--secondary); } .btn-green { background: var(--success); } .btn-red { background: var(--danger); } .btn-gray { background: #6b7280; }
         .btn-outline { background: white; border: 1px solid #ccc; color: #333; padding: 5px 10px; font-size: 0.85rem; width: auto; margin: 0; cursor:pointer; border-radius:4px; }
+        .attendance-action-row { display:flex; gap:8px; }
+        .attendance-action-row .btn { flex:1; min-width:0; }
+        @media (max-width: 480px) { .attendance-action-row { flex-direction:column; } }
 
-        /* Attendance List */
-        .student-item { display: flex; justify-content: space-between; padding: 12px 10px; border-bottom: 1px solid #eee; align-items: center; background: #fff; }
+        .record-status { padding:10px 12px; border-radius:6px; font-size:.88rem; line-height:1.45; margin-top:10px; border:1px solid #d1d5db; }
+        .record-status-neutral { background:#f3f4f6; color:#374151; border-color:#d1d5db; }
+        .record-status-good { background:#dcfce7; color:#166534; border-color:#86efac; }
+        .record-status-warning { background:#fff7ed; color:#9a3412; border-color:#fdba74; }
+        .record-status-unsaved { background:#fef3c7; color:#92400e; border-color:#fcd34d; font-weight:600; }
+
+        /* Attendance List: three explicit states */
+        .student-item { display: flex; justify-content: space-between; gap:10px; padding: 12px 10px; border-bottom: 1px solid #eee; align-items: center; background: #fff; }
         .student-item.absent { background: #fee2e2; }
+        .student-item.unrecorded { background: #f9fafb; }
         .student-name { font-size: 1rem; cursor: pointer; color: var(--primary); text-decoration: underline; text-decoration-color: #ccc; }
-        .status-pill { padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; font-weight: bold; cursor: pointer; user-select: none; border:1px solid transparent; }
+        .status-pill { padding: 6px 10px; border-radius: 15px; font-size: 0.8rem; font-weight: bold; cursor: pointer; user-select: none; border:1px solid transparent; flex-shrink:0; }
         .pill-green { background: #dcfce7; color: #166534; border-color: #86efac; }
         .pill-red { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        .pill-gray { background: #f3f4f6; color: #4b5563; border-color: #d1d5db; }
 
         /* Data Tables */
         .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top:5px; }
@@ -255,13 +268,18 @@
         <span id="status-badge" class="status-badge">Connecting...</span>
     </div>
     <div class="nav-menu">
-        <button class="nav-btn active" onclick="app.nav('attendance', this)">Kehadiran</button>
-        <button class="nav-btn" onclick="app.nav('report', this)">Laporan</button>
-        <button class="nav-btn" onclick="app.nav('data', this)">Data & Jawatan</button>
-        <button class="nav-btn" onclick="app.nav('carta', this)">Carta & Sijil</button>
-        <button class="nav-btn" onclick="app.nav('archive', this)">Arkib</button>
-        <button class="nav-btn" onclick="app.nav('manage', this)">Pengurusan</button>
+        <button class="nav-btn active" data-i18n-key="navAttendance" onclick="app.nav('attendance', this)">Kehadiran</button>
+        <button class="nav-btn" data-i18n-key="navReports" onclick="app.nav('report', this)">Laporan</button>
+        <button class="nav-btn" data-i18n-key="navData" onclick="app.nav('data', this)">Data & Jawatan</button>
+        <button class="nav-btn" data-i18n-key="navChart" onclick="app.nav('carta', this)">Carta & Sijil</button>
+        <button class="nav-btn" data-i18n-key="navArchive" onclick="app.nav('archive', this)">Arkib</button>
+        <button class="nav-btn" data-i18n-key="navManage" onclick="app.nav('manage', this)">Pengurusan</button>
     </div>
+    <select id="ui-language" class="ui-language-select" aria-label="Interface language" onchange="app.setLanguage(this.value)">
+        <option value="ms" selected>Bahasa Melayu</option>
+        <option value="zh">简体中文</option>
+        <option value="en">English</option>
+    </select>
 </div>
 
 <div class="container no-print">
@@ -278,11 +296,19 @@
                 <label style="margin:0;">Tarikh:</label>
                 <input type="date" id="att-date" style="width:70%; margin:0;" onchange="app.renderAttendanceList()">
             </div>
+            <div id="att-record-status" class="record-status record-status-neutral" role="status" aria-live="polite">请选择活动和日期，系统会显示当天记录状态。</div>
+            <p id="att-help-text" data-ui-text-key="attendanceHint" style="font-size:.8rem;color:#6b7280;line-height:1.45;margin:8px 0 0;">默认全部到席，老师只需点击缺席的学生，再保存即可。</p>
         </div>
         <div class="card" style="padding:0; overflow:hidden;">
             <div id="att-list-container" style="padding:20px; text-align:center; color:#666;">Sila pilih kumpulan dan tarikh.</div>
             <div id="att-actions" class="hidden" style="padding:15px; background:#f9fafb; border-top:1px solid #eee;">
-                <button onclick="app.saveAttendance()" class="btn btn-green">💾 SIMPAN KEHADIRAN</button>
+                <div class="attendance-action-row">
+                    <button onclick="app.saveAttendance()" class="btn btn-green" data-i18n-key="saveAttendance">💾 SIMPAN KEHADIRAN</button>
+                    <button onclick="app.clearAttendanceDate()" class="btn btn-red" title="Padam semua status kehadiran untuk kumpulan dan tarikh yang dipilih" data-i18n-key="clearDay" data-i18n-title-key="clearDayTitle">↻ 清除当天记录</button>
+                </div>
+                <p style="font-size:0.8rem;color:#6b7280;line-height:1.45;margin:8px 0 0;">
+                    清除只会删除所选活动、所选日期的出席状态（HADIR / TIDAK），不会删除学生、活动组或已存档报告。删除前会再次确认。
+                </p>
             </div>
         </div>
     </div>
@@ -309,14 +335,14 @@
             <div id="rpt-dates" class="hidden">
                 <label>Pilih Tarikh (Sivik Auto):</label>
                 <div id="rpt-date-accordion"></div>
-                <button onclick="app.generatePreview()" class="btn btn-blue">JANA BORANG ▼</button>
+                <button onclick="app.generatePreview()" class="btn btn-blue" data-i18n-key="generateReport">JANA BORANG ▼</button>
             </div>
         </div>
 
         <div id="report-preview-area" class="hidden">
             <div class="flex justify-between items-center mb-2" style="background:#d1fae5; padding:10px; border-radius:6px; border:1px solid #34d399;">
                 <span style="color:#065f46; font-weight:bold;">Pratonton (Boleh Edit)</span>
-                <button onclick="app.saveReportToCloud()" class="btn btn-green" style="width:auto; padding:5px 15px;">💾 SIMPAN KE ARKIB</button>
+                <button onclick="app.saveReportToCloud()" class="btn btn-green" style="width:auto; padding:5px 15px;" data-i18n-key="saveArchive">💾 SIMPAN KE ARKIB</button>
             </div>
             <div id="editor-content" class="print-page" style="height:auto; min-height:297mm; box-shadow:0 0 10px rgba(0,0,0,0.1); margin-bottom:20px;"></div>
         </div>
@@ -348,7 +374,7 @@
                     <tbody id="data-editor-body"></tbody>
                 </table>
             </div>
-            <button onclick="app.saveBulkData()" class="btn btn-blue" style="margin-top:15px;">💾 SIMPAN SEMUA PERUBAHAN</button>
+            <button onclick="app.saveBulkData()" class="btn btn-blue" style="margin-top:15px;" data-i18n-key="saveAllChanges">💾 SIMPAN SEMUA PERUBAHAN</button>
         </div>
     </div>
 
@@ -361,7 +387,7 @@
         <select id="carta-cat" onchange="app.updateDropdowns('carta')" class="w-half"><option value="">Kategori</option><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
     </div>
     <select id="carta-group" onchange="app.renderSijilList()"><option value="">-- Pilih Kumpulan --</option></select>
-   <button onclick="app.generateCarta()" class="btn btn-blue">JANA CARTA (LIST & POKOK)</button>
+   <button onclick="app.generateCarta()" class="btn btn-blue" data-i18n-key="generateChart">JANA CARTA (LIST & POKOK)</button>
 
     <!-- 新增：文凭生成区域 -->
     <hr style="border:0; border-top:2px dashed #ddd; margin:20px 0;">
@@ -370,21 +396,21 @@
     <p style="font-size:0.85rem; color:#666;">Pilih murid yang akan menerima sijil:</p>
     
     <div class="flex gap-2">
-        <button onclick="app.toggleSijilChecks(true)" class="btn-outline">Pilih Semua</button>
-        <button onclick="app.toggleSijilChecks(false)" class="btn-outline">Nyahpilih</button>
+        <button onclick="app.toggleSijilChecks(true)" class="btn-outline" data-i18n-key="selectAll">Pilih Semua</button>
+        <button onclick="app.toggleSijilChecks(false)" class="btn-outline" data-i18n-key="deselectAll">Nyahpilih</button>
     </div>
     
     <div id="sijil-student-list" class="sijil-selector">
         <div style="text-align:center; color:#999;">Sila pilih kumpulan di atas dahulu.</div>
     </div>
 
-    <button onclick="app.generateSijilPDF()" class="btn btn-green">📄 JANA SIJIL PDF (PROFESIONAL)</button>        
+    <button onclick="app.generateSijilPDF()" class="btn btn-green" data-i18n-key="generateCertificate">📄 JANA SIJIL PDF (PROFESIONAL)</button>        
 </div>
 
         <div id="carta-preview" class="hidden">
             <div class="flex justify-between items-center mb-2 no-print" style="background:#fff7ed; padding:10px; border:1px solid #fdba74;">
                 <span style="color:#c2410c; font-weight:bold;">Pratonton (Boleh Cetak)</span>
-               <button onclick="app.downloadCartaPDF()" class="btn btn-red" style="width:auto;">📄 MUAT TURUN PDF</button>
+               <button onclick="app.downloadCartaPDF()" class="btn btn-red" style="width:auto;" data-i18n-key="downloadPDF">📄 MUAT TURUN PDF</button>
 	
             </div>
             
@@ -414,7 +440,7 @@
                     <tbody id="archive-list"></tbody>
                 </table>
             </div>
-            <button onclick="app.printCombinedPDF()" class="btn btn-red">📄 MUAT TURUN PDF (GABUNGAN)</button>
+            <button onclick="app.printCombinedPDF()" class="btn btn-red" data-i18n-key="downloadCombinedPDF">📄 MUAT TURUN PDF (GABUNGAN)</button>
         </div>
 
         <div class="card" style="border-top-color:#8b5cf6;">
@@ -422,7 +448,7 @@
             <div id="stats-container" style="max-height:300px; overflow-y:auto; margin-top:10px;">
                 <div style="padding:10px; text-align:center; color:#999;">Sila pilih kumpulan di bahagian filter Arkib.</div>
             </div>
-            <button onclick="app.exportExcel()" class="btn btn-green">📥 DOWNLOAD EXCEL</button>
+            <button onclick="app.exportExcel()" class="btn btn-green" data-i18n-key="downloadExcel">📥 DOWNLOAD EXCEL</button>
         </div>
         
         <div class="card" style="border-top-color:#16a34a;">
@@ -436,10 +462,10 @@
             </div>
             <div id="batch-group-list" style="max-height:200px; overflow-y:auto; border:1px solid #eee; margin-bottom:10px; padding:5px;"></div>
             <div class="flex gap-2">
-                <button onclick="app.toggleBatchChecks(true)" class="btn-outline">Pilih Semua</button>
-                <button onclick="app.toggleBatchChecks(false)" class="btn-outline">Nyahpilih</button>
+                <button onclick="app.toggleBatchChecks(true)" class="btn-outline" data-i18n-key="selectAll">Pilih Semua</button>
+                <button onclick="app.toggleBatchChecks(false)" class="btn-outline" data-i18n-key="deselectAll">Nyahpilih</button>
             </div>
-            <button onclick="app.exportBatchExcel()" class="btn btn-green">📥 DOWNLOAD EXCEL (GABUNGAN)</button>
+            <button onclick="app.exportBatchExcel()" class="btn btn-green" data-i18n-key="downloadCombinedExcel">📥 DOWNLOAD EXCEL (GABUNGAN)</button>
         </div>
     </div>
 
@@ -453,7 +479,7 @@
                     <select id="mng-cat" onchange="app.updateDropdowns('mng')" class="w-half"><option value="">Kategori</option><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
                 </div>
                 <select id="mng-group" onchange="app.renderManageList()"><option value="">-- Pilih Kumpulan --</option></select>
-                <button onclick="app.deleteGroup()" class="btn btn-red" style="margin-top:10px; background:#ef4444;">🗑️ HAPUS KUMPULAN INI</button>
+                <button onclick="app.deleteGroup()" class="btn btn-red" style="margin-top:10px; background:#ef4444;" data-i18n-key="deleteGroup">🗑️ HAPUS KUMPULAN INI</button>
             </div>
             <div id="mng-list" style="max-height:300px; overflow-y:auto; border:1px solid #eee; background:white;"></div>
         </div>
@@ -462,7 +488,7 @@
             <h3>➕ Tambah Murid (Batch)</h3>
             <p style="font-size:0.85rem; color:#666;">Pilih kumpulan di atas, kemudian tampal nama.</p>
             <textarea id="batch-names" rows="3" placeholder="Tampal nama murid di sini (Satu nama satu baris)..."></textarea>
-            <button onclick="app.addStudents()" class="btn btn-blue">TAMBAH KE KUMPULAN TERPILIH</button>
+            <button onclick="app.addStudents()" class="btn btn-blue" data-i18n-key="addStudents">TAMBAH KE KUMPULAN TERPILIH</button>
         </div>
         
         <div class="card">
@@ -472,7 +498,7 @@
                 <select id="new-cat" class="w-half"><option value="制服团体">UB</option><option value="学会">Kelab</option><option value="球类与运动">Sukan</option></select>
             </div>
             <input type="text" id="new-group-name" placeholder="Nama Kumpulan (Contoh: Bahasa Melayu)">
-            <button onclick="app.addGroup()" class="btn btn-green">WUJUDKAN KUMPULAN</button>
+            <button onclick="app.addGroup()" class="btn btn-green" data-i18n-key="createGroup">WUJUDKAN KUMPULAN</button>
         </div>
     </div>
 
@@ -485,9 +511,29 @@
 <div id="view-modal" class="modal">
     <div class="modal-content" style="width:230mm; max-width:95%;">
         <div style="text-align:right; margin-bottom:10px;">
-            <button onclick="document.getElementById('view-modal').style.display='none'" class="btn-outline">Tutup</button>
+            <button onclick="document.getElementById('view-modal').style.display='none'" class="btn-outline" data-i18n-key="close">Tutup</button>
         </div>
         <div id="view-content" style="border:1px solid #ccc; overflow-y:auto; max-height:80vh;"></div>
+    </div>
+</div>
+
+<div id="edit-report-date-modal" class="modal" aria-modal="true" role="dialog" aria-labelledby="edit-report-date-title">
+    <div class="modal-content" style="max-width:680px;">
+        <span class="close-btn" onclick="app.closeEditReportDates()">&times;</span>
+        <h3 id="edit-report-date-title">更改报告活动日期</h3>
+        <p id="edit-report-date-subtitle" style="font-size:.9rem;color:#4b5563;line-height:1.5;"></p>
+        <div id="edit-report-date-warning" style="display:none;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;padding:10px;border-radius:6px;margin:10px 0;font-size:.85rem;line-height:1.5;"></div>
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead><tr><th>原报告日期</th><th>更改为</th></tr></thead>
+                <tbody id="edit-report-date-rows"></tbody>
+            </table>
+        </div>
+        <p style="font-size:.8rem;color:#6b7280;line-height:1.5;">保存后会更新这份归档报告内的日期与星期；若能唯一识别活动组，也会按新日期的实时出席数据重新计算人数。不会修改底层点名记录。</p>
+        <div class="flex gap-2" style="margin-top:12px;">
+            <button onclick="app.closeEditReportDates()" class="btn btn-gray" data-i18n-key="cancel">取消</button>
+            <button id="save-report-date-changes-btn" onclick="app.saveReportDateChanges()" class="btn btn-green" data-i18n-key="saveChanges">保存更改</button>
+        </div>
     </div>
 </div>
 
@@ -513,16 +559,16 @@
         </div>
         <select id="edit-target-group" style="background:#f0f9ff; border:1px solid #3b82f6; margin-top:5px;"></select>
         <div class="flex gap-2 mt-4">
-            <button onclick="app.deleteStudent()" class="btn btn-red">Hapus</button>
-            <button onclick="app.saveStudentEdit()" class="btn btn-green">Simpan</button>
-            <button onclick="document.getElementById('edit-modal').style.display='none'" class="btn btn-gray">Batal</button>
+            <button onclick="app.deleteStudent()" class="btn btn-red" data-i18n-key="deleteStudent">Hapus</button>
+            <button onclick="app.saveStudentEdit()" class="btn btn-green" data-i18n-key="saveStudent">Simpan</button>
+            <button onclick="document.getElementById('edit-modal').style.display='none'" class="btn btn-gray" data-i18n-key="cancel">Batal</button>
         </div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, push, set, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, onValue, push, set, update, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
     
     const firebaseConfig = { apiKey: "AIzaSyDO5myI3uksCCJouBuAEcGoRTkzzUzpHy8", authDomain: "school-attendance-v11.firebaseapp.com", databaseURL: "https://school-attendance-v11-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "school-attendance-v11", storageBucket: "school-attendance-v11.firebasestorage.app", messagingSenderId: "765322618387", appId: "1:765322618387:web:34447a10e1bab175b081e6" };
     
@@ -532,10 +578,122 @@
     let dbData = { groups: [], students: [] };
     let metaData = {};
     let reportsData = [];
-    let tempAttendance = {};
+    let tempAttendance = {};       // true = present, false = absent, null = not recorded
+    let originalAttendance = {};   // persisted state loaded for the selected group/date
+    let attendanceTouched = false;  // whether the teacher has interacted with the current checklist
     let isSavingAttendance = false;
+    let isClearingAttendance = false;
     const SIVIK_MAP = { 0: 'Kasih Sayang', 1: 'Hormat-menghormati', 2: 'Bertanggungjawab', 3: 'Kegembiraan', 4: 'Kasih Sayang', 5: 'Hormat-menghormati', 6: 'Bertanggungjawab', 7: 'Kegembiraan', 8: 'Kasih Sayang', 9: 'Hormat-menghormati', 10: 'Bertanggungjawab', 11: 'Kegembiraan' };
     const JAWATAN_SCORE = { 'PENGERUSI': 10, 'NAIB PENGERUSI': 8, 'SETIAUSAHA': 7, 'BENDAHARI': 7, 'NAIB SETIAUSAHA': 6, 'NAIB BENDAHARI': 6, 'AJK': 5, 'AHLI AKTIF': 4, 'AHLI BIASA': 1 };
+
+    // Interface-only translations. Values from Firebase (student names, group names,
+    // categories, IDs and stored attendance values) are never translated or rewritten.
+    let uiLanguage = 'ms';
+    const UI_TEXT = {
+        navAttendance: { zh:'出席点名', ms:'Kehadiran', en:'Attendance' },
+        navReports: { zh:'报告', ms:'Laporan', en:'Reports' },
+        navData: { zh:'资料与职务', ms:'Data & Jawatan', en:'Data & Positions' },
+        navChart: { zh:'组织图与证书', ms:'Carta & Sijil', en:'Charts & Certificates' },
+        navArchive: { zh:'档案', ms:'Arkib', en:'Archive' },
+        navManage: { zh:'管理', ms:'Pengurusan', en:'Management' },
+        saveAttendance: { zh:'💾 保存出席记录', ms:'💾 SIMPAN KEHADIRAN', en:'💾 Save Attendance' },
+        clearDay: { zh:'↻ 清除当天记录', ms:'↻ Kosongkan Rekod Tarikh Ini', en:'↻ Clear This Date' },
+        clearDayTitle: { zh:'删除所选活动和日期的所有出席状态', ms:'Padam status kehadiran bagi kumpulan dan tarikh yang dipilih', en:'Remove attendance statuses for the selected group and date' },
+        generateReport: { zh:'生成报告 ▼', ms:'JANA BORANG ▼', en:'Generate Report ▼' },
+        saveArchive: { zh:'💾 保存到档案', ms:'💾 SIMPAN KE ARKIB', en:'💾 Save to Archive' },
+        saveAllChanges: { zh:'💾 保存所有更改', ms:'💾 SIMPAN SEMUA PERUBAHAN', en:'💾 Save All Changes' },
+        generateChart: { zh:'生成组织图（名单与树状图）', ms:'JANA CARTA (LIST & POKOK)', en:'Generate Organisation Chart (List & Tree)' },
+        selectAll: { zh:'全选', ms:'Pilih Semua', en:'Select All' },
+        deselectAll: { zh:'取消全选', ms:'Nyahpilih', en:'Deselect All' },
+        generateCertificate: { zh:'📄 生成证书 PDF', ms:'📄 JANA SIJIL PDF (PROFESIONAL)', en:'📄 Generate Certificate PDF' },
+        downloadPDF: { zh:'📄 下载 PDF', ms:'📄 MUAT TURUN PDF', en:'📄 Download PDF' },
+        downloadCombinedPDF: { zh:'📄 下载合并 PDF', ms:'📄 MUAT TURUN PDF (GABUNGAN)', en:'📄 Download Combined PDF' },
+        downloadExcel: { zh:'📥 下载 Excel', ms:'📥 DOWNLOAD EXCEL', en:'📥 Download Excel' },
+        downloadCombinedExcel: { zh:'📥 下载合并 Excel', ms:'📥 DOWNLOAD EXCEL (GABUNGAN)', en:'📥 Download Combined Excel' },
+        deleteGroup: { zh:'🗑️ 删除此活动组', ms:'🗑️ HAPUS KUMPULAN INI', en:'🗑️ Delete This Group' },
+        addStudents: { zh:'添加到所选活动组', ms:'TAMBAH KE KUMPULAN TERPILIH', en:'Add to Selected Group' },
+        createGroup: { zh:'创建活动组', ms:'WUJUDKAN KUMPULAN', en:'Create Group' },
+        close: { zh:'关闭', ms:'Tutup', en:'Close' },
+        cancel: { zh:'取消', ms:'Batal', en:'Cancel' },
+        saveChanges: { zh:'保存更改', ms:'Simpan Perubahan', en:'Save Changes' },
+        deleteStudent: { zh:'删除', ms:'Hapus', en:'Delete' },
+        saveStudent: { zh:'保存', ms:'Simpan', en:'Save' },
+        editStudent: { zh:'编辑', ms:'Edit', en:'Edit' },
+        viewReport: { zh:'查看', ms:'Lihat', en:'View' },
+        editDate: { zh:'改日期', ms:'Ubah Tarikh', en:'Edit Date' },
+        toggleAttendance: { zh:'切换出席／缺席状态', ms:'Tukar status kehadiran', en:'Toggle attendance status' },
+        deleteReport: { zh:'删除', ms:'Padam', en:'Delete' },
+        statusPresent: { zh:'✔ 到席', ms:'✔ HADIR', en:'✔ PRESENT' },
+        statusAbsent: { zh:'✖ 缺席', ms:'✖ TIDAK HADIR', en:'✖ ABSENT' },
+        saving: { zh:'⏳ 正在保存…', ms:'⏳ Menyimpan…', en:'⏳ Saving…' },
+        clearing: { zh:'⏳ 正在清除…', ms:'⏳ Mengosongkan…', en:'⏳ Clearing…' },
+        clearDayConfirm: {
+            zh:'确定清除当天记录？\n\n活动：{group}\n日期：{date}\n将删除：{count} 条学生出席状态\n\n只删除此活动此日期的出席状态，不会删除学生、活动组或已存档报告。此操作无法在页面内直接撤销。',
+            ms:'Kosongkan rekod untuk tarikh ini?\n\nKumpulan: {group}\nTarikh: {date}\nStatus murid yang akan dipadam: {count}\n\nHanya status bagi kumpulan dan tarikh ini dipadam. Murid, kumpulan dan laporan arkib tidak dipadam. Tindakan ini tidak boleh dibuat asal pada halaman ini.',
+            en:'Clear attendance records for this date?\n\nGroup: {group}\nDate: {date}\nStudent statuses to remove: {count}\n\nOnly statuses for this group and date will be removed. Students, groups and archived reports will remain. This cannot be undone from this page.'
+        },
+        clearNone: { zh:'所选活动在 {date} 没有已保存的出席记录。', ms:'Tiada rekod kehadiran tersimpan bagi kumpulan ini pada {date}.', en:'No saved attendance records exist for this group on {date}.' },
+        clearSuccess: {
+            zh:'已清除 {group} 在 {date} 的 {count} 条出席状态。报告生成页已刷新该活动的日期列表；已存档报告不会自动删除。',
+            ms:'{count} status kehadiran untuk {group} pada {date} telah dikosongkan. Senarai tarikh laporan bagi kumpulan ini telah dikemas kini; laporan arkib sedia ada tidak dipadam secara automatik.',
+            en:'Cleared {count} attendance statuses for {group} on {date}. The report date list for this group has been refreshed; existing archived reports are not deleted automatically.'
+        },
+        chooseGroupDate: { zh:'请先选择活动和日期。', ms:'Sila pilih kumpulan dan tarikh dahulu.', en:'Please select a group and date first.' },
+        noAttendanceDates: { zh:'此活动目前没有已保存的出席日期。', ms:'Tiada tarikh kehadiran tersimpan untuk kumpulan ini.', en:'No saved attendance dates exist for this group.' },
+        noStudents: { zh:'该活动没有学生记录。', ms:'Tiada rekod murid bagi kumpulan ini.', en:'No student records exist for this group.' },
+        noStudentsCannotMark: { zh:'该活动没有学生记录，无法点名。', ms:'Tiada rekod murid untuk diambil kehadiran.', en:'There are no student records to mark attendance for.' },
+        attendanceHint: {
+            zh:'名单默认全部到席；老师只需点击缺席学生，再按保存。保存会记录名单上所有学生的状态。',
+            ms:'Semua murid ditandakan hadir secara lalai. Guru hanya perlu klik murid yang tidak hadir, kemudian simpan. Status semua murid dalam senarai akan disimpan.',
+            en:'All students default to present. Teachers only need to click students who are absent, then save. The current status of every student in the list will be saved.'
+        },
+        attendancePending: {
+            zh:'有待保存的修改。当前：到席 {present} 人、缺席 {absent} 人。按保存后会记录该活动当天所有学生的状态。',
+            ms:'Terdapat perubahan yang belum disimpan. Hadir: {present}; tidak hadir: {absent}. Menyimpan akan merekodkan status semua murid bagi kumpulan dan tarikh ini.',
+            en:'There are unsaved changes. Present: {present}; absent: {absent}. Saving records every student’s status for this group and date.'
+        },
+        attendanceNoSaved: {
+            zh:'当天尚无已保存记录。名单默认全部到席；只需点击缺席学生，再保存。',
+            ms:'Belum ada rekod tersimpan untuk tarikh ini. Semua murid lalai hadir; klik murid yang tidak hadir sahaja, kemudian simpan.',
+            en:'No attendance has been saved for this date. All students default to present; click only students who are absent, then save.'
+        },
+        attendancePartial: {
+            zh:'当天只有部分记录：{recorded}/{total} 人已记录。其他学生暂按到席显示；确认缺席名单后保存会补齐全体状态。',
+            ms:'Rekod tarikh ini belum lengkap: {recorded}/{total} murid direkodkan. Murid lain dipaparkan sebagai hadir secara lalai; semak yang tidak hadir dan simpan untuk melengkapkan semua status.',
+            en:'This date is partially recorded: {recorded}/{total} students have saved statuses. Others default to present; mark absentees and save to complete the record.'
+        },
+        attendanceComplete: {
+            zh:'当天记录完整：{total} 人已记录（到席 {present} 人、缺席 {absent} 人）。',
+            ms:'Rekod lengkap: {total} murid telah direkodkan (hadir {present}, tidak hadir {absent}).',
+            en:'Attendance is complete: {total} students recorded ({present} present, {absent} absent).'
+        },
+        attendanceNoChanges: { zh:'没有新的修改需要保存。', ms:'Tiada perubahan baharu untuk disimpan.', en:'There are no new changes to save.' },
+        clearFailed: { zh:'清除失败。请检查网络连接后再试，并重新载入确认记录状态。', ms:'Gagal mengosongkan rekod. Semak sambungan internet dan muat semula untuk mengesahkan status.', en:'Could not clear the records. Check your connection and reload to verify the status.' }
+    };
+    function t(key, vars = {}) {
+        const entry = UI_TEXT[key];
+        let text = entry ? (entry[uiLanguage] || entry.ms || entry.en || key) : key;
+        for (const [name, value] of Object.entries(vars || {})) text = text.replaceAll(`{${name}}`, String(value ?? ''));
+        return text;
+    }
+    function applyUILanguage(lang) {
+        uiLanguage = ['zh','ms','en'].includes(lang) ? lang : 'ms';
+        const languageSelect = document.getElementById('ui-language');
+        if (languageSelect && languageSelect.value !== uiLanguage) languageSelect.value = uiLanguage;
+        document.documentElement.lang = uiLanguage === 'zh' ? 'zh-CN' : uiLanguage;
+        document.querySelectorAll('button[data-i18n-key]').forEach(button => {
+            button.textContent = t(button.dataset.i18nKey);
+        });
+        document.querySelectorAll('[data-i18n-title-key]').forEach(el => {
+            el.title = t(el.dataset.i18nTitleKey);
+        });
+        document.querySelectorAll('[data-i18n-aria-key]').forEach(el => {
+            el.setAttribute('aria-label', t(el.dataset.i18nAriaKey));
+        });
+        document.querySelectorAll('[data-ui-text-key]').forEach(el => {
+            el.textContent = t(el.dataset.uiTextKey);
+        });
+    }
 
     function init() {
         onValue(ref(db, 'school_data_v11'), snap => {
@@ -555,13 +713,21 @@
         onValue(ref(db, 'school_group_meta_v11'), snap => { metaData = snap.val() || {}; });
         onValue(ref(db, 'school_reports_v11'), snap => {
             const value = snap.val();
-            reportsData = value ? Object.values(value).filter(Boolean) : [];
+            // Keep each Firebase child key so a report can be updated/deleted without
+            // touching any other archived report. _dbKey is client-only metadata.
+            reportsData = value ? Object.entries(value)
+                .filter(([, report]) => !!report)
+                .map(([key, report]) => ({ ...report, _dbKey: key })) : [];
             if(document.getElementById('tab-archive').classList.contains('active')) app.fetchReports();
         });
         document.getElementById('att-date').valueAsDate = new Date();
     }
 
     window.app = {
+        setLanguage: (lang) => {
+            applyUILanguage(lang);
+            if(Object.keys(tempAttendance).length) app.refreshAttendanceRecordStatus();
+        },
         nav: (t, el) => {
             document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
             document.getElementById('tab-'+t).classList.add('active');
@@ -589,8 +755,11 @@
             if(c) list = list.filter(g => g.category === c);
             list.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
             const escapeOption = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            const optionsHtml = ['<option value="">-- Pilih --</option>',
-                ...list.map(g => `<option value="${escapeOption(g.id)}">${escapeOption(g.name || '')}</option>`)].join('');
+            // Always identify a group by year + category + name, so same-named groups
+            // across grades/categories cannot be mistaken for one another.
+            const groupOptionLabel = g => `${g.year || '年级未设'} · ${g.category || '类别未设'} · ${g.name || '未命名活动'}`;
+            const optionsHtml = ['<option value="">-- 请选择活动 --</option>',
+                ...list.map(g => `<option value="${escapeOption(g.id)}">${escapeOption(groupOptionLabel(g))}</option>`)].join('');
             // Avoid needless DOM work on every attendance snapshot, but restore selection if options changed.
             if(sel.innerHTML !== optionsHtml) sel.innerHTML = optionsHtml;
             sel.value = list.some(g => String(g.id) === previousValue) ? previousValue : '';
@@ -718,74 +887,274 @@
             }
         },
 
-        // --- ATTENDANCE ---
+        // --- ATTENDANCE: all students default to present; click only absentees ---
         renderAttendanceList: () => {
             const gid = document.getElementById('att-group').value;
             const date = document.getElementById('att-date').value;
             const container = document.getElementById('att-list-container');
             const actions = document.getElementById('att-actions');
-            if(!gid || !date) { tempAttendance = {}; container.innerHTML = "Sila pilih kumpulan & tarikh."; actions.classList.add('hidden'); return; }
-            const students = (dbData.students || []).filter(s => s && s.groupId === gid);
-            if(students.length === 0) { tempAttendance = {}; container.innerHTML = "Tiada murid."; actions.classList.add('hidden'); return; }
+            attendanceTouched = false;
+            if(!gid || !date) {
+                tempAttendance = {};
+                originalAttendance = {};
+                container.innerHTML = t('chooseGroupDate');
+                actions.classList.add('hidden');
+                app.updateAttendanceRecordStatus('neutral', t('chooseGroupDate'));
+                return;
+            }
+            const students = (dbData.students || []).filter(s => s && String(s.groupId) === String(gid));
+            if(students.length === 0) {
+                tempAttendance = {};
+                originalAttendance = {};
+                container.innerHTML = t('noStudents');
+                actions.classList.add('hidden');
+                app.updateAttendanceRecordStatus('warning', t('noStudentsCannotMark'));
+                return;
+            }
             container.innerHTML = '';
             tempAttendance = {};
+            originalAttendance = {};
             students.forEach(s => {
-                const isPresent = (s.attendance && s.attendance[date] !== undefined) ? s.attendance[date] : true;
-                tempAttendance[s.id] = isPresent;
+                const hasDate = !!(s.attendance && Object.prototype.hasOwnProperty.call(s.attendance, date));
+                const rawValue = hasDate ? s.attendance[date] : null;
+                // Missing values default to PRESENT for teacher efficiency; keep null in originalAttendance
+                // so saving the list creates explicit true/false values for every student on that date.
+                const persistedStatus = typeof rawValue === 'boolean' ? rawValue : null;
+                const status = persistedStatus === null ? true : persistedStatus;
+                tempAttendance[s.id] = status;
+                originalAttendance[s.id] = persistedStatus;
                 const div = document.createElement('div');
-                div.className = `student-item ${isPresent?'':'absent'}`;
+                div.className = `student-item ${status === false ? 'absent' : ''}`.trim();
                 div.id = `row-${s.id}`;
-                div.innerHTML = `<span class="student-name" onclick="app.showProfile('${s.id}')">${s.name} ℹ️</span><span class="status-pill ${isPresent?'pill-green':'pill-red'}" onclick="app.toggleAtt('${s.id}')">${isPresent?'✔ HADIR':'✖ TIDAK'}</span>`;
+                const safeStudentName = String(s.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                const safeId = String(s.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const statusKey = status ? 'statusPresent' : 'statusAbsent';
+                div.innerHTML = `<span class="student-name" onclick="app.showProfile('${safeId}')">${safeStudentName} ℹ️</span><button type="button" data-i18n-key="${statusKey}" class="status-pill ${status ? 'pill-green' : 'pill-red'}" aria-label="${t('toggleAttendance')}" data-i18n-aria-key="toggleAttendance" onclick="app.toggleAtt('${safeId}')">${t(statusKey)}</button>`;
                 container.appendChild(div);
             });
             actions.classList.remove('hidden');
+            app.refreshAttendanceRecordStatus();
+        },
+        updateAttendanceRecordStatus: (kind, message) => {
+            const el = document.getElementById('att-record-status');
+            if(!el) return;
+            el.className = `record-status record-status-${kind || 'neutral'}`;
+            el.textContent = message;
+        },
+        refreshAttendanceRecordStatus: () => {
+            const ids = Object.keys(tempAttendance);
+            const total = ids.length;
+            if(!total) {
+                app.updateAttendanceRecordStatus('neutral', t('chooseGroupDate'));
+                return;
+            }
+            let present = 0, absent = 0, originalRecorded = 0, changed = 0;
+            ids.forEach(id => {
+                const current = tempAttendance[id];
+                const original = Object.prototype.hasOwnProperty.call(originalAttendance, id) ? originalAttendance[id] : null;
+                if(current === true) present++;
+                else if(current === false) absent++;
+                if(original === true || original === false) originalRecorded++;
+                if(current !== original) changed++;
+            });
+            if(attendanceTouched && changed > 0) {
+                app.updateAttendanceRecordStatus('unsaved', t('attendancePending', { present, absent }));
+            } else if(originalRecorded === 0) {
+                app.updateAttendanceRecordStatus('warning', t('attendanceNoSaved'));
+            } else if(originalRecorded < total) {
+                app.updateAttendanceRecordStatus('warning', t('attendancePartial', { recorded: originalRecorded, total }));
+            } else {
+                app.updateAttendanceRecordStatus('good', t('attendanceComplete', { total, present, absent }));
+            }
         },
         toggleAtt: (sid) => {
             if(!Object.prototype.hasOwnProperty.call(tempAttendance, sid)) return;
             const row = document.getElementById(`row-${sid}`);
             if(!row) return;
-            tempAttendance[sid] = !tempAttendance[sid];
+            // Binary toggle only: PRESENT <-> ABSENT. Missing stored statuses start as PRESENT.
+            tempAttendance[sid] = tempAttendance[sid] === false ? true : false;
+            attendanceTouched = true;
+            const next = tempAttendance[sid];
+            row.classList.toggle('absent', next === false);
+            row.classList.remove('unrecorded');
             const pill = row.querySelector('.status-pill');
             if(!pill) return;
-            if(tempAttendance[sid]) { row.classList.remove('absent'); pill.className="status-pill pill-green"; pill.innerText="✔ HADIR"; } 
-            else { row.classList.add('absent'); pill.className="status-pill pill-red"; pill.innerText="✖ TIDAK"; }
+            const key = next ? 'statusPresent' : 'statusAbsent';
+            pill.dataset.i18nKey = key;
+            pill.className = `status-pill ${next ? 'pill-green' : 'pill-red'}`;
+            pill.textContent = t(key);
+            pill.dataset.i18nAriaKey = 'toggleAttendance';
+            pill.setAttribute('aria-label', t('toggleAttendance'));
+            app.refreshAttendanceRecordStatus();
         },
         saveAttendance: async () => {
             const date = document.getElementById('att-date').value;
             const gid = document.getElementById('att-group').value;
-            if(isSavingAttendance) return;
-            if(!gid || !date) return alert("Sila pilih kumpulan dan tarikh dahulu.");
-            if(!Object.keys(tempAttendance).length) return alert("Tiada senarai murid untuk disimpan. Sila pilih semula kumpulan.");
-            const updates = {};
-            (dbData.students || []).forEach((s, idx) => {
-                if(s && s.groupId === gid && Object.prototype.hasOwnProperty.call(tempAttendance, s.id)) {
-                    updates[`school_data_v11/students/${idx}/attendance/${date}`] = tempAttendance[s.id];
-                }
+            if(isSavingAttendance || isClearingAttendance) return;
+            if(!gid || !date) return alert("请先选择活动和日期。");
+            if(!Object.keys(tempAttendance).length) return alert("没有可保存的学生记录，请重新选择活动。");
+
+            const changes = Object.keys(tempAttendance).filter(id => {
+                const original = Object.prototype.hasOwnProperty.call(originalAttendance, id) ? originalAttendance[id] : null;
+                return tempAttendance[id] !== original;
             });
-            if(!Object.keys(updates).length) return alert("Tiada rekod kehadiran yang boleh disimpan. Sila muat semula senarai murid.");
-            const button = document.querySelector('#att-actions button');
+            if(changes.length === 0) return alert(t('attendanceNoChanges'));
+
+            const group = (dbData.groups || []).find(g => g && String(g.id) === String(gid));
+            const groupLabel = group ? `${group.year || ''} · ${group.category || ''} · ${group.name || ''}` : gid;
+            const originalRecorded = Object.values(originalAttendance).filter(v => v === true || v === false).length;
+            const changedToPresent = changes.filter(id => tempAttendance[id] === true).length;
+            const changedToAbsent = changes.filter(id => tempAttendance[id] === false).length;
+            const changedToUnrecorded = changes.filter(id => tempAttendance[id] === null).length;
+            if(originalRecorded > 0) {
+                const confirmed = confirm(
+                    `该活动当天已有出席记录，请确认是否覆盖修改。\n\n活动：${groupLabel}\n日期：${date}\n现有记录：${originalRecorded} 人\n本次修改：${changes.length} 人\n改为到席：${changedToPresent} 人\n改为缺席：${changedToAbsent} 人\n清除个人状态：${changedToUnrecorded} 人\n\n继续后只会更新本活动该日期中有变更的学生，不会修改其他日期或活动。`
+                );
+                if(!confirmed) return;
+            }
+
+            const indexById = new Map();
+            (dbData.students || []).forEach((s, idx) => { if(s && s.id !== undefined) indexById.set(String(s.id), idx); });
+            const updates = {};
+            changes.forEach(id => {
+                const idx = indexById.get(String(id));
+                if(idx === undefined) return;
+                const value = tempAttendance[id];
+                // null removes this student's date key; true/false explicitly records attendance.
+                updates[`school_data_v11/students/${idx}/attendance/${date}`] = value === null ? null : value;
+            });
+            if(!Object.keys(updates).length) return alert("没有找到可更新的学生记录。请重新载入后再试。");
+
+            const button = document.querySelector('#att-actions button[onclick="app.saveAttendance()"]');
+            const clearButton = document.querySelector('#att-actions button[onclick="app.clearAttendanceDate()"]');
             const oldText = button ? button.innerText : '';
             isSavingAttendance = true;
-            if(button) { button.disabled = true; button.innerText = '⏳ Menyimpan...'; }
+            if(button) { button.disabled = true; button.textContent = t('saving'); }
+            if(clearButton) clearButton.disabled = true;
             try {
                 await update(ref(db), updates);
-                alert("Kehadiran berjaya disimpan.");
+                (dbData.students || []).forEach(s => {
+                    if(!s || String(s.groupId) !== String(gid) || !Object.prototype.hasOwnProperty.call(tempAttendance, s.id)) return;
+                    const value = tempAttendance[s.id];
+                    if(value === null) {
+                        if(s.attendance) {
+                            delete s.attendance[date];
+                            if(Object.keys(s.attendance).length === 0) delete s.attendance;
+                        }
+                    } else {
+                        if(!s.attendance) s.attendance = {};
+                        s.attendance[date] = value;
+                    }
+                });
+                originalAttendance = { ...tempAttendance };
+                attendanceTouched = false;
+                app.renderAttendanceList();
+                alert("出席记录已保存。");
             } catch(e) {
-                console.error('Gagal menyimpan kehadiran:', e);
-                alert("Gagal menyimpan kehadiran. Sila periksa sambungan internet dan cuba lagi.");
+                console.error('保存出席记录失败:', e);
+                alert("保存失败。请检查网络连接，暂时不要重复点击；重新载入后确认记录状态。");
             } finally {
                 isSavingAttendance = false;
-                if(button) { button.disabled = false; button.innerText = oldText; }
+                if(button) { button.disabled = false; button.textContent = t('saveAttendance'); }
+                if(clearButton) clearButton.disabled = false;
+            }
+        },
+        clearAttendanceDate: async () => {
+            const date = document.getElementById('att-date').value;
+            const gid = document.getElementById('att-group').value;
+            if(isSavingAttendance || isClearingAttendance) return;
+            if(!gid || !date) return alert("请先选择活动和日期。");
+
+            const group = (dbData.groups || []).find(g => g && String(g.id) === String(gid));
+            const members = (dbData.students || []).map((s, index) => ({ s, index }))
+                .filter(x => x.s && String(x.s.groupId) === String(gid));
+            if(!members.length) return alert("该活动没有学生记录，无需清除。");
+
+            // Only delete date keys that actually exist. This does not delete student,
+            // group, report, or any other date data.
+            const affected = members.filter(({s}) => s.attendance &&
+                Object.prototype.hasOwnProperty.call(s.attendance, date));
+            if(!affected.length) {
+                // Discard any unsaved clicks too, and clear the selected group so the
+                // default-present list cannot be accidentally saved back to an empty date.
+                tempAttendance = {};
+                originalAttendance = {};
+                attendanceTouched = false;
+                document.getElementById('att-group').value = '';
+                app.renderAttendanceList();
+                app.refreshReportDatePickerAfterAttendanceChange(gid, date);
+                return alert(t('clearNone', { date }));
+            }
+
+            const groupLabel = group ? `${group.year || ''} ${group.category || ''} - ${group.name || ''}`.trim() : gid;
+            const confirmed = confirm(t('clearDayConfirm', { group: groupLabel, date, count: affected.length }));
+            if(!confirmed) return;
+
+            const updates = {};
+            affected.forEach(({index}) => {
+                updates[`school_data_v11/students/${index}/attendance/${date}`] = null;
+            });
+            const saveButton = document.querySelector('#att-actions button[onclick="app.saveAttendance()"]');
+            const clearButton = document.querySelector('#att-actions button[onclick="app.clearAttendanceDate()"]');
+            const oldText = clearButton ? clearButton.innerText : '';
+            isClearingAttendance = true;
+            if(saveButton) saveButton.disabled = true;
+            if(clearButton) { clearButton.disabled = true; clearButton.textContent = t('clearing'); }
+            try {
+                await update(ref(db), updates);
+                // Update the local copy immediately so stale values are not shown while
+                // waiting for Firebase's onValue callback.
+                affected.forEach(({s}) => {
+                    if(s.attendance) {
+                        delete s.attendance[date];
+                        if(Object.keys(s.attendance).length === 0) delete s.attendance;
+                    }
+                });
+                tempAttendance = {};
+                originalAttendance = {};
+                attendanceTouched = false;
+                // Clear the selected group so the teacher cannot immediately save the
+                // default-present list back onto the date that was just cleared.
+                document.getElementById('att-group').value = '';
+                app.renderAttendanceList();
+                app.refreshReportDatePickerAfterAttendanceChange(gid, date);
+                alert(t('clearSuccess', { group: groupLabel, date, count: affected.length }));
+            } catch(e) {
+                console.error('清除当天出席记录失败:', e);
+                alert(t('clearFailed'));
+            } finally {
+                isClearingAttendance = false;
+                if(saveButton) saveButton.disabled = false;
+                if(clearButton) { clearButton.disabled = false; clearButton.textContent = t('clearDay'); }
             }
         },
 
         // --- REPORT ---
-        onReportGroupSelect: () => {
+        refreshReportDatePickerAfterAttendanceChange: (gid, clearedDate) => {
+            const rptGroup = document.getElementById('rpt-group');
+            if(!rptGroup || String(rptGroup.value || '') !== String(gid || '')) return;
+            // Immediately rebuild this group's date source from remaining saved attendance keys.
+            // A date removed from every student in this group disappears from Laporan selection.
+            app.onReportGroupSelect({ preserveChecked: true });
+            // Invalidate a stale preview so it cannot be saved again with a date that was just cleared.
+            document.getElementById('report-preview-area').classList.add('hidden');
+        },
+        onReportGroupSelect: (options = {}) => {
             const gid = document.getElementById('rpt-group').value;
-            if(!gid) return;
+            const acc = document.getElementById('rpt-date-accordion');
+            if(!gid) {
+                acc.innerHTML = '';
+                document.getElementById('rpt-meta').classList.add('hidden');
+                document.getElementById('rpt-dates').classList.add('hidden');
+                document.getElementById('report-preview-area').classList.add('hidden');
+                return;
+            }
+            const previouslyChecked = options.preserveChecked
+                ? new Set(Array.from(document.querySelectorAll('.rpt-chk:checked')).map(chk => chk.value))
+                : new Set();
             let suName = "";
             const suStudent = dbData.students.find(s => s.groupId === gid && s.jawatan === "SETIAUSAHA");
-            if (suStudent) suName = suStudent.name.split(/[\u4e00-\u9fa5]/)[0].trim(); 
+            if (suStudent) suName = suStudent.name.split(/[\u4e00-\u9fa5]/)[0].trim();
             if(metaData[gid]) {
                 document.getElementById('meta-teacher').value = metaData[gid].teacher || '';
                 document.getElementById('meta-place').value = metaData[gid].place || '';
@@ -796,11 +1165,15 @@
             const datesSet = new Set();
             students.forEach(s => { if(s.attendance) Object.keys(s.attendance).forEach(d => datesSet.add(d)); });
             const dates = Array.from(datesSet).sort().reverse();
-            const acc = document.getElementById('rpt-date-accordion'); acc.innerHTML = '';
-            if(dates.length === 0) { acc.innerHTML = '<div style="color:red">Tiada rekod kehadiran.</div>'; return; }
+            acc.innerHTML = '';
+            document.getElementById('rpt-dates').classList.remove('hidden');
+            if(dates.length === 0) {
+                acc.innerHTML = `<div style="color:#b91c1c;padding:8px;">${t('noAttendanceDates')}</div>`;
+                return;
+            }
             let currentMonth = ''; let body = null;
             dates.forEach((d, idx) => {
-                const mName = new Date(d).toLocaleString('ms-MY', { month:'long', year:'numeric' }).toUpperCase();
+                const mName = new Date(`${d}T12:00:00`).toLocaleString(uiLanguage === 'zh' ? 'zh-CN' : uiLanguage === 'en' ? 'en-GB' : 'ms-MY', { month:'long', year:'numeric' }).toUpperCase();
                 if(mName !== currentMonth) {
                     currentMonth = mName;
                     const grp = document.createElement('div'); grp.className = 'month-group';
@@ -812,10 +1185,12 @@
                     grp.appendChild(head); grp.appendChild(body); acc.appendChild(grp);
                 }
                 const lbl = document.createElement('label'); lbl.className='chk-label';
-                lbl.innerHTML = `<input type="checkbox" value="${d}" class="rpt-chk"> ${d}`;
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox'; checkbox.value = d; checkbox.className = 'rpt-chk';
+                checkbox.checked = previouslyChecked.has(d);
+                lbl.appendChild(checkbox); lbl.appendChild(document.createTextNode(` ${d}`));
                 body.appendChild(lbl);
             });
-            document.getElementById('rpt-dates').classList.remove('hidden');
         },
         generatePreview: () => {
             const gid = document.getElementById('rpt-group').value;
@@ -852,6 +1227,7 @@
                     id: Date.now(), timestamp: new Date().toISOString(), groupName: tables[0].rows[0].cells[1].innerText, groupId: gid,
                     meta: { teacher: getVal('meta-teacher'), place: getVal('meta-place'), officer: getVal('meta-officer') },
                     content: { activity: getVal('inp-activity'), sivik: getVal('inp-sivik'), pikebm: getVal('inp-pikebm'), other: getVal('inp-other') },
+                    activityDates: Array.from(tables[1].querySelectorAll('tbody tr')).map(row => row.cells[0] ? row.cells[0].textContent.trim() : '').filter(Boolean),
                     attendanceHtml: tables[1].querySelector('tbody').innerHTML
                 };
                 await push(ref(db, 'school_reports_v11'), report);
@@ -1213,7 +1589,7 @@ generateSijilPDF: async () => {
             students.forEach(s => {
                 const d = document.createElement('div');
                 d.style.padding="10px"; d.style.borderBottom="1px solid #eee"; d.style.display="flex"; d.style.justifyContent="space-between";
-                d.innerHTML = `<span>${s.name}</span><button class="btn-outline" onclick="app.editStudent('${s.id}')">Edit</button>`;
+                d.innerHTML = `<span>${s.name}</span><button class="btn-outline" data-i18n-key="editStudent" onclick="app.editStudent('${s.id}')">${t('editStudent')}</button>`;
                 list.appendChild(d);
             });
         },
@@ -1289,15 +1665,54 @@ generateSijilPDF: async () => {
         },
 
         // --- ARCHIVE / EXPORT ---
+        findReportRecord: (rid) => {
+            const key = String(rid ?? '');
+            return reportsData.find(x => x && (String(x._dbKey ?? '') === key || String(x.id ?? '') === key)) || null;
+        },
+        resolveReportGroup: (report) => {
+            if(!report) return null;
+            if(report.groupId !== undefined && report.groupId !== null && String(report.groupId).trim() !== '') {
+                return (dbData.groups || []).find(g => g && String(g.id) === String(report.groupId)) || null;
+            }
+            const norm = value => String(value || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+            const label = norm(report.groupName);
+            const exact = (dbData.groups || []).filter(g =>
+                norm(`${g.year || ''} ${g.category || ''} - ${g.name || ''}`) === label
+            );
+            if(exact.length === 1) return exact[0];
+            const nameOnly = (dbData.groups || []).filter(g => norm(g.name) === label);
+            return nameOnly.length === 1 ? nameOnly[0] : null;
+        },
+        extractReportDates: (report) => {
+            const table = document.createElement('table');
+            table.innerHTML = `<tbody>${(report && report.attendanceHtml) || ''}</tbody>`;
+            return Array.from(table.querySelectorAll('tbody tr')).map(row => {
+                const cells = row.querySelectorAll('td');
+                return cells.length ? String(cells[0].textContent || '').trim() : '';
+            }).filter(Boolean);
+        },
         fetchReports: () => {
             const list = document.getElementById('archive-list');
             const gid = document.getElementById('arc-group').value;
             const group = gid ? dbData.groups.find(g => g.id === gid) : null;
 
-            // Filter a new array rather than sorting/mutating reportsData itself.
+            // Filter by exact group ID whenever possible; legacy reports without IDs
+            // need a full unambiguous label match to avoid cross-grade leakage.
             let display = reportsData.filter(Boolean);
             if(gid && group) {
-                display = display.filter(r => r.groupId === gid || String(r.groupName || '').includes(group.name || ''));
+                const normalizeGroupLabel = value => String(value || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+                const expectedLabel = normalizeGroupLabel(`${group.year || ''} ${group.category || ''} - ${group.name || ''}`);
+                const sameNameCount = (dbData.groups || []).filter(g =>
+                    normalizeGroupLabel(g && g.name) === normalizeGroupLabel(group.name)
+                ).length;
+                display = display.filter(r => {
+                    if(r.groupId !== undefined && r.groupId !== null && String(r.groupId).trim() !== '') {
+                        return String(r.groupId) === String(gid);
+                    }
+                    const savedLabel = normalizeGroupLabel(r.groupName);
+                    if(savedLabel === expectedLabel) return true;
+                    return sameNameCount === 1 && savedLabel === normalizeGroupLabel(group.name);
+                });
             }
             display.sort((a,b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
 
@@ -1306,25 +1721,166 @@ generateSijilPDF: async () => {
                 return;
             }
 
-            // Build once and update the DOM once instead of reparsing it for every report.
+            const esc = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             const rows = display.map(r => {
                 const d = r.timestamp ? new Date(r.timestamp).toLocaleDateString() : '-';
-                return `<tr><td style="text-align:center"><input type="checkbox" value="${r.id}" class="arc-chk"></td><td><b>${r.groupName || ''}</b><br><span style="color:#666;font-size:0.8rem;">Dicipta: ${d}</span></td><td style="text-align:center"><button class="btn-outline" onclick="app.viewReport('${r.id}')">Lihat</button></td></tr>`;
+                const dates = app.extractReportDates(r);
+                const dateText = dates.length ? dates.join(', ') : '未找到活动日期';
+                const id = esc(r._dbKey || r.id);
+                return `<tr>
+                    <td style="text-align:center;vertical-align:middle"><input type="checkbox" value="${id}" class="arc-chk"></td>
+                    <td><b>${esc(r.groupName || '')}</b><br><span style="color:#1d4ed8;font-size:.82rem;">活动日期：${esc(dateText)}</span><br><span style="color:#666;font-size:.8rem;">存档时间：${esc(d)}</span></td>
+                    <td style="text-align:center;white-space:nowrap;">
+                        <button class="btn-outline" data-i18n-key="viewReport" onclick="app.viewReport('${id}')">${t('viewReport')}</button>
+                        <button class="btn-outline" data-i18n-key="editDate" style="margin-top:4px;border-color:#2563eb;color:#1d4ed8;" onclick="app.editReportDates('${id}')">${t('editDate')}</button>
+                        <button class="btn-outline" data-i18n-key="deleteReport" style="margin-top:4px;border-color:#dc2626;color:#b91c1c;" onclick="app.deleteReport('${id}')">${t('deleteReport')}</button>
+                    </td>
+                </tr>`;
             });
             list.innerHTML = rows.join('');
         },
         viewReport: (rid) => {
-            const r = reportsData.find(x => x.id == rid); if(!r) return;
+            const r = app.findReportRecord(rid); if(!r) return alert('找不到这份报告，可能已被删除。');
             const meta = r.meta || {}; const content = r.content || {};
             const data = { groupName: r.groupName || '', teacher: meta.teacher || '', place: meta.place || '', officer: meta.officer || '', attRows: r.attendanceHtml || '', activity: content.activity || '', sivik: content.sivik || '', pikebm: content.pikebm || '', other: content.other || '' };
             document.getElementById('view-content').innerHTML = `<div class="print-page">${app.buildHTML(data, false)}</div>`;
             document.getElementById('view-modal').style.display = 'flex';
         },
+        deleteReport: async (rid) => {
+            const r = app.findReportRecord(rid);
+            if(!r) return alert('找不到这份报告，可能已被删除。');
+            if(!r._dbKey) return alert('系统无法确认这份报告在 Firebase 中的唯一位置，因此没有删除任何资料。请重新载入 Arkib 后再试。');
+            const dates = app.extractReportDates(r);
+            const displayDate = dates.length ? dates.join(', ') : '未找到活动日期';
+            const confirmed = confirm(`确定删除这份已存档报告？\n\n报告：${r.groupName || '未命名报告'}\n活动日期：${displayDate}\n\n只会删除这一份 Arkib 报告，不会删除学生点名记录、活动组或其他报告。此操作无法在本页面撤销。`);
+            if(!confirmed) return;
+            try {
+                await remove(ref(db, `school_reports_v11/${r._dbKey}`));
+                reportsData = reportsData.filter(x => String(x._dbKey) !== String(r._dbKey));
+                app.fetchReports();
+                if(document.getElementById('view-modal').style.display === 'flex') document.getElementById('view-modal').style.display = 'none';
+                alert('已删除该份 Arkib 报告。原始点名记录没有改动。');
+            } catch(e) {
+                console.error('删除 Arkib 报告失败:', e);
+                alert('删除失败。请检查网络连接并重新载入 Arkib，确认报告是否仍然存在。');
+            }
+        },
+        editReportDates: (rid) => {
+            const r = app.findReportRecord(rid);
+            if(!r) return alert('找不到这份报告，可能已被删除。');
+            const table = document.createElement('table');
+            table.innerHTML = `<tbody>${r.attendanceHtml || ''}</tbody>`;
+            const rows = Array.from(table.querySelectorAll('tbody tr')).filter(row => row.querySelectorAll('td').length >= 3);
+            if(!rows.length) return alert('这份报告没有可编辑的活动日期行。');
+            const group = app.resolveReportGroup(r);
+            const modal = document.getElementById('edit-report-date-modal');
+            const tbody = document.getElementById('edit-report-date-rows');
+            const warning = document.getElementById('edit-report-date-warning');
+            document.getElementById('edit-report-date-subtitle').textContent = `${r.groupName || '未命名报告'} · ${rows.length} 个日期。这里只更改这份报告，不会直接改动点名数据库。`;
+            if(group) {
+                warning.style.display = 'block';
+                warning.textContent = '已唯一确认活动组。保存时会使用所选新日期的实时点名数据重新计算报告中的到席人数；若该日期完全没有点名记录，会再次提示你确认。';
+            } else {
+                warning.style.display = 'block';
+                warning.textContent = '无法唯一确认这份旧报告所属的活动组。保存时只会更新日期和星期，并保留原报告中的人数；不会猜测应使用哪个活动组的点名资料。';
+            }
+            tbody.innerHTML = '';
+            rows.forEach((row, index) => {
+                const cells = row.querySelectorAll('td');
+                const oldDate = String(cells[0].textContent || '').trim();
+                const validDate = /^\d{4}-\d{2}-\d{2}$/.test(oldDate) ? oldDate : '';
+                const tr = document.createElement('tr');
+                const oldCell = document.createElement('td');
+                oldCell.textContent = oldDate || `第 ${index + 1} 项（日期格式无法识别）`;
+                const newCell = document.createElement('td');
+                const input = document.createElement('input');
+                input.type = 'date'; input.className = 'report-new-date'; input.dataset.rowIndex = String(index);
+                input.value = validDate; input.required = true; input.style.margin = '0';
+                newCell.appendChild(input); tr.appendChild(oldCell); tr.appendChild(newCell); tbody.appendChild(tr);
+            });
+            modal.dataset.reportRef = String(r._dbKey || r.id);
+            modal.dataset.reportRowHtml = r.attendanceHtml || '';
+            modal.style.display = 'flex';
+        },
+        closeEditReportDates: () => {
+            document.getElementById('edit-report-date-modal').style.display = 'none';
+        },
+        saveReportDateChanges: async () => {
+            const modal = document.getElementById('edit-report-date-modal');
+            const rid = modal.dataset.reportRef;
+            const r = app.findReportRecord(rid);
+            if(!r) { app.closeEditReportDates(); return alert('找不到这份报告，可能已被删除。'); }
+            if(!r._dbKey) return alert('无法确认这份报告在 Firebase 中的唯一位置，没有保存任何更改。请重新载入 Arkib 后再试。');
+            const inputs = Array.from(modal.querySelectorAll('.report-new-date'));
+            if(!inputs.length || inputs.some(input => !input.value)) return alert('请为每一行选择有效日期。');
+            const newDates = inputs.map(input => input.value);
+            if(new Set(newDates).size !== newDates.length) return alert('同一份报告不能有重复日期，请检查输入。');
+
+            const table = document.createElement('table');
+            table.innerHTML = `<tbody>${modal.dataset.reportRowHtml || ''}</tbody>`;
+            const rows = Array.from(table.querySelectorAll('tbody tr')).filter(row => row.querySelectorAll('td').length >= 3);
+            if(rows.length !== newDates.length) return alert('报告日期行已发生变化，请关闭窗口并重新打开后再试。');
+
+            const group = app.resolveReportGroup(r);
+            const students = group ? (dbData.students || []).filter(s => s && String(s.groupId) === String(group.id)) : [];
+            let datesWithoutAttendance = [];
+            if(group) {
+                newDates.forEach(date => {
+                    const anyStatus = students.some(student => student.attendance && Object.prototype.hasOwnProperty.call(student.attendance, date) && typeof student.attendance[date] === 'boolean');
+                    if(!anyStatus) datesWithoutAttendance.push(date);
+                });
+            }
+            if(datesWithoutAttendance.length) {
+                const goOn = confirm(`以下新日期在该活动组没有任何已保存的 true/false 点名状态：\n${datesWithoutAttendance.join(', ')}\n\n重新计算后这些日期的到席人数会显示为 0 / ${students.length}。你仍要继续更改这份报告吗？`);
+                if(!goOn) return;
+            }
+
+            // Update the cached HTML rows. Recompute weekday from the local calendar date.
+            rows.forEach((row, index) => {
+                const cells = row.querySelectorAll('td');
+                const date = newDates[index];
+                cells[0].textContent = date;
+                cells[1].textContent = new Date(`${date}T12:00:00`).toLocaleDateString('ms-MY', { weekday: 'long' });
+                if(group) {
+                    const present = students.filter(student => student.attendance && student.attendance[date] === true).length;
+                    cells[2].textContent = `${present} / ${students.length}`;
+                }
+            });
+            // Preserve chronological order after a date edit.
+            const body = table.querySelector('tbody');
+            Array.from(body.querySelectorAll('tr')).sort((a,b) => {
+                const ad = a.querySelector('td')?.textContent || '';
+                const bd = b.querySelector('td')?.textContent || '';
+                return ad.localeCompare(bd);
+            }).forEach(row => body.appendChild(row));
+
+            const saveButton = document.getElementById('save-report-date-changes-btn');
+            const oldText = saveButton ? saveButton.textContent : '';
+            if(saveButton) { saveButton.disabled = true; saveButton.textContent = t('saving'); }
+            try {
+                await update(ref(db, `school_reports_v11/${r._dbKey}`), {
+                    attendanceHtml: body.innerHTML,
+                    activityDates: newDates.slice().sort(),
+                    editedAt: new Date().toISOString()
+                });
+                r.attendanceHtml = body.innerHTML;
+                r.activityDates = newDates.slice().sort();
+                r.editedAt = new Date().toISOString();
+                app.closeEditReportDates();
+                app.fetchReports();
+                alert(group ? '报告日期已更改，星期与到席人数也已按所选日期更新。底层点名记录没有修改。' : '报告日期已更改，星期已更新；因无法唯一确认活动组，人数保持原值。底层点名记录没有修改。');
+            } catch(e) {
+                console.error('更改 Arkib 报告日期失败:', e);
+                alert('保存日期失败。请检查网络连接并重新载入 Arkib 确认，避免重复修改。');
+            } finally {
+                if(saveButton) { saveButton.disabled = false; saveButton.textContent = t('saveChanges'); }
+            }
+        },
         printCombinedPDF: async () => {
             const chks = document.querySelectorAll('.arc-chk:checked'); if(chks.length===0) return alert("Pilih laporan.");
             const container = document.getElementById('pdf-staging-content'); container.innerHTML = '';
             for(const c of chks) {
-                const r = reportsData.find(x => x.id == c.value);
+                const r = app.findReportRecord(c.value);
                 if(r) {
                     const meta = r.meta || {}; const content = r.content || {};
                     const data = { groupName: r.groupName || '', teacher: meta.teacher || '', place: meta.place || '', officer: meta.officer || '', attRows: r.attendanceHtml || '', activity: content.activity || '', sivik: content.sivik || '', pikebm: content.pikebm || '', other: content.other || '' };
@@ -1498,6 +2054,7 @@ generateSijilPDF: async () => {
             document.getElementById('profile-modal').style.display = 'flex';
         },
     };
+    applyUILanguage(document.getElementById('ui-language')?.value || 'ms');
     init();
 </script>
 </body>
